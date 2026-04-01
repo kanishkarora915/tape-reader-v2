@@ -108,10 +108,10 @@ export default function TabSignal({ signal, engines, tick }) {
   // --- Signal data table ---
   const dataRows = [
     { label: 'INSTRUMENT', value: signal?.instrument ?? safe(signal, 'strike_info'), color: '#E8E8E8' },
-    { label: 'ENTRY', value: signal?.entry ?? '--', color: '#E8E8E8' },
-    { label: 'STOP LOSS', value: signal?.stop_loss ?? signal?.sl ?? '--', color: '#FF3D00' },
-    { label: 'TARGET 1', value: signal?.target1 ?? signal?.t1 ?? '--', color: '#00C853' },
-    { label: 'TARGET 2', value: signal?.target2 ?? signal?.t2 ?? '--', color: '#00C853' },
+    { label: 'ENTRY', value: Array.isArray(signal?.entry) ? signal.entry.join(' — ') : (signal?.entry ?? '--'), color: '#E8E8E8' },
+    { label: 'STOP LOSS', value: typeof signal?.sl === 'object' ? JSON.stringify(signal.sl) : (signal?.stop_loss ?? signal?.sl ?? '--'), color: '#FF3D00' },
+    { label: 'TARGET 1', value: typeof signal?.t1 === 'object' ? JSON.stringify(signal.t1) : (signal?.target1 ?? signal?.t1 ?? '--'), color: '#00C853' },
+    { label: 'TARGET 2', value: typeof signal?.t2 === 'object' ? JSON.stringify(signal.t2) : (signal?.target2 ?? signal?.t2 ?? '--'), color: '#00C853' },
     { label: 'CONFIDENCE', value: signal?.confidence ?? '--', color: '#E8E8E8' },
     { label: 'IV GATE', value: ivGateVal, color: ivGateColor(ivGateVal) },
     { label: 'STRUCTURE', value: safe(engines, 'e03.data.structure', safe(engines, 'e03.verdict', '--')), color: '#E8E8E8' },

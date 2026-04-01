@@ -21,9 +21,11 @@ function Ticker({ label, data }) {
       <span style={{ color: '#E8E8E8', fontSize: 13, fontWeight: 600 }}>{'\u2014'}</span>
     </span>
   )
-  if (!data || (!data.ltp && data.ltp !== 0)) return placeholder
-
-  const { ltp, change, changePct } = data
+  if (!data || typeof data !== 'object') return placeholder
+  const ltp = typeof data.ltp === 'number' ? data.ltp : 0
+  const change = typeof data.change === 'number' ? data.change : 0
+  const changePct = typeof data.changePct === 'number' ? data.changePct : 0
+  if (!ltp && ltp !== 0) return placeholder
   const clr = changeColor(change)
 
   return (
@@ -97,7 +99,7 @@ export default function TopBar({ tick = {}, connected = false, mode }) {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           <span style={{ color: '#555', fontSize: 10 }}>VIX</span>
           <span style={{ color: '#FF3D00', fontSize: 13, fontWeight: 600 }}>
-            {tick?.vix != null && tick.vix !== 0 ? fmt(tick.vix) : '\u2014'}
+            {typeof tick?.vix === 'number' && tick.vix !== 0 ? fmt(tick.vix) : '\u2014'}
           </span>
         </span>
       </div>

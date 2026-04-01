@@ -69,7 +69,8 @@ export default function TabAICard({ engines, signal }) {
 
   const entryPrice = entryArr.length ? Number(entryArr[0]) : 0;
   const slPrice = signal?.sl ?? (entryPrice ? (entryPrice * 0.85).toFixed(1) : '--');
-  const supportLevel = engines?.e03?.data?.support || engines?.e03?.support || '--';
+  const rawSupport = engines?.e03?.data?.support ?? engines?.e03?.support ?? '--';
+  const supportLevel = typeof rawSupport === 'object' ? JSON.stringify(rawSupport) : String(rawSupport);
 
   const hasData = signal || (e24 && (rationale || tradeRec));
 
