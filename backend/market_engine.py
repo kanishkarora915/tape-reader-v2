@@ -176,10 +176,28 @@ class MarketEngine:
 
                 # Broadcast to WebSocket clients
                 await self.ws_manager.broadcast("engines", self.engine_results)
-                await self.ws_manager.broadcast("ticks", {
-                    "nifty": context.get("nifty_spot", 0),
-                    "banknifty": context.get("banknifty_spot", 0),
-                    "sensex": context.get("sensex_spot", 0),
+                await self.ws_manager.broadcast("tick", {
+                    "nifty": {
+                        "ltp": context.get("nifty_spot", 0),
+                        "change": context.get("nifty_change", 0),
+                        "changePct": context.get("nifty_change_pct", 0),
+                        "high": context.get("nifty_high", 0),
+                        "low": context.get("nifty_low", 0),
+                    },
+                    "banknifty": {
+                        "ltp": context.get("banknifty_spot", 0),
+                        "change": context.get("banknifty_change", 0),
+                        "changePct": context.get("banknifty_change_pct", 0),
+                        "high": context.get("banknifty_high", 0),
+                        "low": context.get("banknifty_low", 0),
+                    },
+                    "sensex": {
+                        "ltp": context.get("sensex_spot", 0),
+                        "change": context.get("sensex_change", 0),
+                        "changePct": context.get("sensex_change_pct", 0),
+                        "high": context.get("sensex_high", 0),
+                        "low": context.get("sensex_low", 0),
+                    },
                     "vix": context.get("vix", 0),
                 })
 

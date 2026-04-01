@@ -1,6 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const CHANNELS = ['tick', 'engines', 'chain', 'signal', 'alert']
+// Ensure all signal values are primitives (no objects/arrays that crash React)
+function sanitizeSignal(sig) {
+  if (!sig || typeof sig !== 'object') return sig
+  const clean = {}
+  for (const [k, v] of Object.entries(sig)) {
+    if (Array.isArray(v)) clean[k] = v.map(x => typeof x === 'object' ? JSON.stringify(x) : x)
+    else if (v && typeof v === 'object') clean[k] = JSON.stringify(v)
+    else clean[k] = v
+  }
+  // Keep entry as joined string
+  if (Array.isArray(sig.entry)) clean.entry = sig.entry.join(' — ')
+  // Keep reasoning as array of strings
+  if (Array.isArray(sig.reasoning)) clean.reasoning = sig.reasoning.map(r => typeof r === 'string' ? r : JSON.stringify(r))
+  return clean
+}
 
 export default function useBloomSocket() {
   const [connected, setConnected] = useState(false)
@@ -25,13 +39,15 @@ export default function useBloomSocket() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data)
-        switch (msg.channel) {
-          case 'tick':    setTick(msg.data); break
-          case 'engines': setEngines(msg.data); break
-          case 'chain':   setChain(prev => ({ ...prev, [msg.index]: msg.data })); break
-          case 'signal':  setSignal(msg.data); break
-          case 'alert':   setAlerts(prev => [msg.data, ...prev].slice(0, 50)); break
-        }
+        const ch = msg.channel
+        const d = msg.data
+        if (!d || typeof d !== 'object') return
+
+        if (ch === 'tick' || ch === 'ticks')  setTick(d)
+        else if (ch === 'engines')             setEngines(d)
+        else if (ch === 'chain')               setChain(prev => ({ ...prev, [msg.index || 'NIFTY']: Array.isArray(d) ? d : [] }))
+        else if (ch === 'signal')              setSignal(sanitizeSignal(d))
+        else if (ch === 'alert')               setAlerts(prev => [d, ...prev].slice(0, 50))
       } catch {}
     }
 
