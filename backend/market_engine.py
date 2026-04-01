@@ -320,6 +320,48 @@ class MarketEngine:
                 if signal and signal.get("type") not in ("SKIP", "WAIT"):
                     await self.ws_manager.broadcast("signal", signal)
 
+                # Broadcast option chain as array for frontend
+                chain_array = sorted(flat_chain.values(), key=lambda r: r.get("strike", 0))
+                # Mark ATM row
+                for row in chain_array:
+                    row["atm"] = (row.get("strike", 0) == atm)
+                if chain_array:
+                    # Compute max pain
+                    max_pain = atm
+                    min_pain_val = float("inf")
+                    for row in chain_array:
+                        pain = sum(
+                            max(0, row["strike"] - r["strike"]) * r.get("pe_oi", 0) +
+                            max(0, r["strike"] - row["strike"]) * r.get("ce_oi", 0)
+                            for r in chain_array
+                        )
+                        if pain < min_pain_val:
+                            min_pain_val = pain
+                            max_pain = row["strike"]
+
+                    await self.ws_manager.broadcast("chain", chain_array, index="NIFTY", max_pain=max_pain)
+
+                    # Also broadcast BANKNIFTY and SENSEX chains if available
+                    for idx in ("BANKNIFTY", "SENSEX"):
+                        idx_chain = self.chains.get(idx, {})
+                        if idx_chain:
+                            idx_array = []
+                            for strike, data in idx_chain.items():
+                                ce = data.get("ce", {})
+                                pe = data.get("pe", {})
+                                idx_spot = context.get(f"{idx.lower()}_spot", 0)
+                                idx_gap = 100
+                                idx_atm = round(idx_spot / idx_gap) * idx_gap if idx_spot else 0
+                                idx_array.append({
+                                    "strike": strike, "atm": (strike == idx_atm),
+                                    "ce_oi": ce.get("oi", 0), "pe_oi": pe.get("oi", 0),
+                                    "ce_ltp": ce.get("ltp", 0), "pe_ltp": pe.get("ltp", 0),
+                                    "ce_volume": ce.get("volume", 0), "pe_volume": pe.get("volume", 0),
+                                    "ce_iv": 0, "pe_iv": 0,
+                                })
+                            idx_array.sort(key=lambda r: r.get("strike", 0))
+                            await self.ws_manager.broadcast("chain", idx_array, index=idx)
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
