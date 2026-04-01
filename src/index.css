@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #06080d;
+  --color-bg2: #0a0e17;
+  --color-surface: #0e1420;
+  --color-surface2: #131c2c;
+  --color-border: rgba(0, 200, 255, 0.08);
+  --color-border-bright: rgba(0, 200, 255, 0.18);
+  --color-neon: #00d4ff;
+  --color-neon-dim: rgba(0, 212, 255, 0.12);
+  --color-bull: #00e676;
+  --color-bull-dim: rgba(0, 230, 118, 0.1);
+  --color-bear: #ff3d71;
+  --color-bear-dim: rgba(255, 61, 113, 0.1);
+  --color-warn: #ffab00;
+  --color-warn-dim: rgba(255, 171, 0, 0.1);
+  --color-purple: #b388ff;
+  --color-purple-dim: rgba(179, 136, 255, 0.1);
+  --color-text: #d6e0ee;
+  --color-text-dim: #5a6e87;
+  --color-text-muted: #384860;
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { font-size: 14px; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle grid background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(0,200,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,255,0.012) 1px, transparent 1px);
+  background-size: 60px 60px;
+  z-index: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-text-muted); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-neon); }
+
+/* Glow animations */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(0,212,255,0.15); }
+  50% { box-shadow: 0 0 20px rgba(0,212,255,0.3); }
+}
+@keyframes bullGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(0,230,118,0.15); }
+  50% { box-shadow: 0 0 20px rgba(0,230,118,0.3); }
+}
+@keyframes bearGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,61,113,0.15); }
+  50% { box-shadow: 0 0 20px rgba(255,61,113,0.3); }
+}
