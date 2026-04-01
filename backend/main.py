@@ -112,6 +112,10 @@ async def callback(
         sess = auth_manager.get_session(sid)
         logger.info(f"[AUTH] Login OK. Token: {access_token[:8]}...")
 
+        # Give kite instance to last-session fetcher for real data
+        from demo_data import fetcher
+        fetcher.set_kite(sess["kite"])
+
         # Start market engine
         from engines import engine_registry
         market_engine = MarketEngine(
