@@ -66,7 +66,8 @@ class AIReasoningEngine(BaseEngine):
         # Context data
         prices = ctx.get("prices", {})
         spot = prices.get("spot", 0) or prices.get("ltp", 0)
-        vix = ctx.get("vix", {}).get("current", 0)
+        vix_raw = ctx.get("vix", 0)
+        vix = vix_raw if isinstance(vix_raw, (int, float)) else ctx.get("vix_data", {}).get("current", 0)
         dte = ctx.get("dte", "?")
 
         lines.extend([

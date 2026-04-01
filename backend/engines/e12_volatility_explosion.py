@@ -24,9 +24,10 @@ class VolatilityExplosionEngine(BaseEngine):
 
     def _detect_vix_spike(self, ctx: dict) -> dict:
         """VIX intraday change > 5%."""
-        vix = ctx.get("vix", {})
-        current_vix = vix.get("current", 0)
-        open_vix = vix.get("open", 0) or vix.get("prev_close", 0)
+        vix_raw = ctx.get("vix", 0)
+        vix_data = ctx.get("vix_data", {})
+        current_vix = vix_raw if isinstance(vix_raw, (int, float)) else vix_data.get("current", 0)
+        open_vix = vix_data.get("open", current_vix) if isinstance(vix_data, dict) else current_vix
 
         if open_vix <= 0 or current_vix <= 0:
             return {"active": False, "change_pct": 0, "current": current_vix}

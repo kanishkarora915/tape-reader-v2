@@ -6,8 +6,9 @@ and broadcasts results via WebSocket.
 
 import asyncio
 import logging
+import time
 import threading
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from kiteconnect import KiteConnect, KiteTicker
 
@@ -37,6 +38,15 @@ class MarketEngine:
         self.chains: dict = {}          # index -> {strike: {ce: ..., pe: ...}}
         self.engine_results: dict = {}  # engine_id -> result dict
         self.instruments: dict = {}     # token -> instrument info
+
+        # Candle builder
+        self._candle_history = []  # list of OHLCV dicts
+        self._current_candle = None
+        self._candle_interval = 300  # 5 minutes
+        self._last_candle_time = 0
+
+        # Placeholders for future data sources
+        self._fii_data = {}
 
         # Ticker
         self._ticker: KiteTicker | None = None
@@ -110,6 +120,8 @@ class MarketEngine:
 
     def _on_ticks(self, ws, ticks) -> None:
         """Process incoming ticks — update prices and chains."""
+        nifty_spot_token = INDEX_CONFIG["NIFTY"]["spot_token"]
+
         for tick in ticks:
             token = tick.get("instrument_token")
             if not token:
@@ -138,6 +150,26 @@ class MarketEngine:
                     "change_oi": tick.get("oi_day_high", 0) - tick.get("oi_day_low", 0),
                 }
 
+            # Candle builder for NIFTY spot
+            if token == nifty_spot_token:
+                ltp = tick.get("last_price", 0)
+                now = time.time()
+                if self._current_candle is None:
+                    self._current_candle = {"open": ltp, "high": ltp, "low": ltp, "close": ltp, "volume": 0, "ts": now}
+                    self._last_candle_time = now
+                else:
+                    self._current_candle["high"] = max(self._current_candle["high"], ltp)
+                    self._current_candle["low"] = min(self._current_candle["low"], ltp)
+                    self._current_candle["close"] = ltp
+                    self._current_candle["volume"] += tick.get("volume_traded", 0)
+
+                    if now - self._last_candle_time >= self._candle_interval:
+                        self._candle_history.append(self._current_candle.copy())
+                        if len(self._candle_history) > 200:
+                            self._candle_history = self._candle_history[-200:]
+                        self._current_candle = {"open": ltp, "high": ltp, "low": ltp, "close": ltp, "volume": 0, "ts": now}
+                        self._last_candle_time = now
+
     def _on_close(self, ws, code, reason) -> None:
         """Handle ticker disconnect."""
         logger.warning(f"[TICKER] Closed: {code} — {reason}")
@@ -149,8 +181,6 @@ class MarketEngine:
                 # Build engine context
                 context = {
                     "prices": self.prices.copy(),
-                    "chains": dict(self.chains),
-                    "vix": self.prices.get(VIX_TOKEN, {}).get("last_price", 0),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
@@ -168,6 +198,79 @@ class MarketEngine:
                     context[f"{prefix}_change_pct"] = round(change_pct, 2)
                     context[f"{prefix}_high"] = ohlc.get("high", ltp)
                     context[f"{prefix}_low"] = ohlc.get("low", ltp)
+
+                # --- Flatten NIFTY chain for engines ---
+                flat_chain = {}
+                nifty_chain = self.chains.get("NIFTY", {})
+                for strike, data in nifty_chain.items():
+                    ce = data.get("ce", {})
+                    pe = data.get("pe", {})
+                    flat_chain[strike] = {
+                        "strike": strike,
+                        "ce_oi": ce.get("oi", 0),
+                        "pe_oi": pe.get("oi", 0),
+                        "ce_ltp": ce.get("ltp", 0),
+                        "pe_ltp": pe.get("ltp", 0),
+                        "ce_volume": ce.get("volume", 0),
+                        "pe_volume": pe.get("volume", 0),
+                        "ce_iv": 0,
+                        "pe_iv": 0,
+                    }
+
+                # Spot price in prices dict (engines expect this)
+                nifty_spot = context.get("nifty_spot", 0)
+                context["prices"]["spot"] = nifty_spot
+                context["prices"]["change_pct"] = context.get("nifty_change_pct", 0)
+
+                # Flat chain
+                context["chains"] = flat_chain
+
+                # Previous engine results
+                context["previous_results"] = dict(self.engine_results)
+
+                # ATM strike
+                gap = 50
+                atm = round(nifty_spot / gap) * gap if nifty_spot else 0
+                context["atm_strike"] = atm
+                context["spot"] = nifty_spot
+
+                # VIX as both float and dict (engines use both formats)
+                vix_val = self.prices.get(VIX_TOKEN, {}).get("last_price", 0)
+                context["vix"] = vix_val
+                context["vix_data"] = {
+                    "current": vix_val,
+                    "open": self.prices.get(VIX_TOKEN, {}).get("ohlc", {}).get("open", vix_val),
+                }
+
+                # Days to expiry (approximate — next Thursday)
+                today = date.today()
+                days_ahead = (3 - today.weekday()) % 7  # Thursday
+                if days_ahead == 0:
+                    days_ahead = 0  # It's Thursday
+                context["days_to_expiry"] = days_ahead
+                context["dte"] = days_ahead
+
+                # Lot sizes
+                context["lot_size"] = 25  # NIFTY lot
+
+                # Candles
+                context["candles"] = list(self._candle_history)
+                context["candles_15m"] = []
+                context["candles_1h"] = []
+                context["daily_candles"] = []
+
+                # Depth data (from last tick)
+                context["depth"] = {}
+
+                # FII/DII placeholder
+                context["fii_dii"] = getattr(self, '_fii_data', {})
+
+                # Cross assets placeholder
+                context["cross_assets"] = {}
+
+                # Pre-market placeholder
+                context["premarket"] = {}
+                context["global_cues"] = []
 
                 # Run all engines
                 for engine_id, engine_inst in self.engine_registry.items():
