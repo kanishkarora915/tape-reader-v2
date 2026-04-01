@@ -1,43 +1,32 @@
 export default function TabAICard({ engines, signal }) {
-  // --- Helpers ---
-  const e24 = engines?.e24?.data || {}
-  const confidence = e24.confidence ?? 0
-  const rationale = e24.rationale || ''
-  const riskFactors = e24.risk_factors || []
-  const tradeRec = e24.trade_recommendation || ''
-
-  const now = new Date()
-  const istTime = now.toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
+  const e24 = engines?.e24?.data || {};
+  const confidence = e24.confidence ?? 0;
+  const rationale = e24.rationale || '';
+  const riskFactors = e24.risk_factors || [];
+  const tradeRec = e24.trade_recommendation || '';
 
   const confLabel = confidence > 75
     ? { text: 'HIGH', color: '#00C853' }
     : confidence >= 50
       ? { text: 'MEDIUM', color: '#FFB300' }
-      : { text: 'LOW', color: '#FF3D00' }
+      : { text: 'LOW', color: '#FF3D00' };
 
-  const isCall = (signal?.type || tradeRec || '').toUpperCase().includes('CALL')
-  const isPut = (signal?.type || tradeRec || '').toUpperCase().includes('PUT')
-  const signalColor = isCall ? '#00C853' : isPut ? '#FF3D00' : '#E8E8E8'
+  const isCall = (signal?.type || tradeRec || '').toUpperCase().includes('CALL');
+  const isPut = (signal?.type || tradeRec || '').toUpperCase().includes('PUT');
+  const signalColor = isCall ? '#00C853' : isPut ? '#FF3D00' : '#E8E8E8';
 
   const signalText = tradeRec
     || (signal
       ? `${(signal.type || 'BUY CALL').toUpperCase()} — ${signal.instrument || 'NIFTY'} ${signal.strike || ''} CE WEEKLY`
-      : '')
+      : '');
 
-  const entryArr = Array.isArray(signal?.entry) ? signal.entry : (signal?.entry ? [signal.entry] : [])
-  const entryStr = entryArr.length ? entryArr.join(' / ') : '--'
-  const sl = signal?.sl ?? '--'
-  const t1 = signal?.t1 ?? '--'
-  const t2 = signal?.t2 ?? '--'
+  const entryArr = Array.isArray(signal?.entry) ? signal.entry : (signal?.entry ? [signal.entry] : []);
+  const entryStr = entryArr.length ? entryArr.join(' / ') : '--';
+  const sl = signal?.sl ?? '--';
+  const t1 = signal?.t1 ?? '--';
+  const t2 = signal?.t2 ?? '--';
 
-  // Supporting engines: those with PASS verdict
-  const engineKeys = Array.from({ length: 24 }, (_, i) => `e${String(i + 1).padStart(2, '0')}`)
+  const engineKeys = Array.from({ length: 24 }, (_, i) => `e${String(i + 1).padStart(2, '0')}`);
   const engineDescriptions = {
     e01: 'OI Change Analysis',
     e02: 'PCR Trend Monitor',
@@ -63,39 +52,47 @@ export default function TabAICard({ engines, signal }) {
     e22: 'Block Deal Tracker',
     e23: 'Global Cue Aggregator',
     e24: 'Claude AI Reasoning',
-  }
+  };
 
   const passingEngines = engineKeys.filter(k => {
-    const eng = engines?.[k]
-    if (!eng) return false
-    const verdict = (eng.verdict || eng.status || '').toUpperCase()
-    return verdict === 'PASS'
-  })
+    const eng = engines?.[k];
+    if (!eng) return false;
+    const verdict = (eng.verdict || eng.status || '').toUpperCase();
+    return verdict === 'PASS';
+  });
 
-  // Entry details
-  const strikeVal = signal?.strike || '--'
-  const typeVal = isCall ? 'ATM Call' : isPut ? 'ATM Put' : '--'
+  const strikeVal = signal?.strike || '--';
+  const typeVal = isCall ? 'ATM Call' : isPut ? 'ATM Put' : '--';
   const entryZone = entryArr.length >= 2
     ? `${entryArr[0]} - ${entryArr[entryArr.length - 1]}`
-    : entryStr
+    : entryStr;
 
-  // SL calculation
-  const entryPrice = entryArr.length ? Number(entryArr[0]) : 0
-  const slPrice = signal?.sl ?? (entryPrice ? (entryPrice * 0.85).toFixed(1) : '--')
-  const supportLevel = engines?.e03?.data?.support || engines?.e03?.support || '--'
+  const entryPrice = entryArr.length ? Number(entryArr[0]) : 0;
+  const slPrice = signal?.sl ?? (entryPrice ? (entryPrice * 0.85).toFixed(1) : '--');
+  const supportLevel = engines?.e03?.data?.support || engines?.e03?.support || '--';
 
-  // No data state
-  const hasData = signal || (e24 && (rationale || tradeRec))
+  const hasData = signal || (e24 && (rationale || tradeRec));
+
+  const sectionHeader = {
+    fontSize: 10,
+    color: '#FFB300',
+    fontWeight: 600,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    borderBottom: '1px solid #1f1f1f',
+    paddingBottom: 8,
+    marginBottom: 12,
+    fontFamily: "'IBM Plex Mono', monospace",
+  };
 
   if (!hasData) {
     return (
       <div style={{
         fontFamily: "'IBM Plex Mono', monospace",
         background: '#0a0a0a',
-        width: '100%',
-        maxWidth: 900,
+        padding: '20px 24px',
+        maxWidth: 920,
         margin: '0 auto',
-        padding: 16,
         minHeight: 400,
         display: 'flex',
         flexDirection: 'column',
@@ -103,167 +100,151 @@ export default function TabAICard({ engines, signal }) {
         justifyContent: 'center',
         gap: 8,
       }}>
-        <div style={{ color: '#444444', fontSize: 14, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }}>
-          BLOOM AI ANALYSIS NOT YET AVAILABLE
+        <div style={{ color: '#333', fontSize: 14, fontWeight: 700, letterSpacing: 4, textTransform: 'uppercase' }}>
+          AI ANALYSIS PENDING
         </div>
-        <div style={{ color: '#444444', fontSize: 10 }}>
+        <div style={{ color: '#333', fontSize: 10, letterSpacing: 1, fontFamily: "'IBM Plex Mono', monospace" }}>
           Login and wait for signal confluence to trigger AI reasoning engine
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div style={{
       fontFamily: "'IBM Plex Mono', monospace",
       background: '#0a0a0a',
-      width: '100%',
-      maxWidth: 900,
+      padding: '20px 24px',
+      maxWidth: 920,
       margin: '0 auto',
-      padding: 16,
     }}>
       {/* Title */}
-      <div style={{ color: '#FFB300', fontSize: 16, fontWeight: 700, letterSpacing: 3, marginBottom: 2 }}>
+      <div style={{ color: '#FFB300', fontSize: 15, fontWeight: 700, letterSpacing: 4, fontFamily: "'IBM Plex Mono', monospace" }}>
         BLOOM AI — TRADE REASONING ENGINE
       </div>
 
       {/* Sub */}
-      <div style={{ color: '#444444', fontSize: 10, marginBottom: 20 }}>
-        Powered by Claude MCP · Generated: {istTime} IST · Confidence:{' '}
+      <div style={{ color: '#444', fontSize: 9, marginTop: 4, marginBottom: 28, fontFamily: "'IBM Plex Mono', monospace" }}>
+        Powered by Claude · Confidence:{' '}
         <span style={{ color: confLabel.color, fontWeight: 700 }}>{confLabel.text}</span>
       </div>
 
       {/* Sections */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
         {/* 1. TRADE SIGNAL */}
-        <Section title="TRADE SIGNAL">
-          <div style={{ color: signalColor, fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+        <div>
+          <div style={sectionHeader}>TRADE SIGNAL</div>
+          <div style={{ color: signalColor, fontSize: 22, fontWeight: 700, marginBottom: 8, fontFamily: "'IBM Plex Mono', monospace" }}>
             {signalText || '--'}
           </div>
-          <div style={{ color: '#E8E8E8', fontSize: 12 }}>
+          <div style={{ color: '#E8E8E8', fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
             Entry: {entryStr} · SL: <span style={{ color: '#FF3D00' }}>{sl}</span> · T1: {t1} · T2: {t2}
           </div>
-        </Section>
+        </div>
 
         {/* 2. WHY THIS TRADE */}
-        <Section title="WHY THIS TRADE">
+        <div>
+          <div style={sectionHeader}>WHY THIS TRADE</div>
           {rationale ? (
-            <div style={{ color: '#7A5600', fontSize: 11, lineHeight: 1.8 }}>
+            <div style={{ color: '#7A5600', fontSize: 11, lineHeight: 1.8, fontStyle: 'italic', fontFamily: "'IBM Plex Mono', monospace" }}>
               {rationale}
             </div>
           ) : (
-            <div style={{ color: '#444444', fontSize: 11 }}>
+            <div style={{ color: '#444', fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
               AI engine will generate reasoning when signal fires...
             </div>
           )}
-        </Section>
+        </div>
 
         {/* 3. SUPPORTING ENGINES */}
-        <Section title="SUPPORTING ENGINES">
+        <div>
+          <div style={sectionHeader}>SUPPORTING ENGINES</div>
           {passingEngines.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {passingEngines.map(k => (
-                <div key={k} style={{ fontSize: 11 }}>
-                  <span style={{ color: '#444444' }}>{k.toUpperCase()}</span>
+                <div key={k} style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  <span style={{ color: '#444' }}>{k.toUpperCase()}</span>
                   <span style={{ color: '#E8E8E8' }}> — {engineDescriptions[k] || 'Engine'}</span>
-                  <span style={{ color: '#00C853', marginLeft: 6 }}>&#10003;</span>
+                  <span style={{ color: '#00C853', marginLeft: 8 }}>&#10003;</span>
                 </div>
               ))}
             </div>
           ) : (
-            <div style={{ color: '#444444', fontSize: 11 }}>No engines currently passing</div>
+            <div style={{ color: '#444', fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>No engines currently passing</div>
           )}
-        </Section>
+        </div>
 
-        {/* 4. WHAT TO WATCH (RISKS) */}
-        <Section title="WHAT TO WATCH (RISKS)">
+        {/* 4. WHAT TO WATCH */}
+        <div>
+          <div style={sectionHeader}>WHAT TO WATCH</div>
           {riskFactors.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {riskFactors.map((r, i) => (
-                <div key={i} style={{ color: '#FF3D00', fontSize: 11 }}>
-                  → {r}
+                <div key={i} style={{ color: '#FF3D00', fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {'\u2192'} {r}
                 </div>
               ))}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <div style={{ color: '#FF3D00', fontSize: 11 }}>→ Expiry day theta decay accelerates after 1:30 PM</div>
-              <div style={{ color: '#FF3D00', fontSize: 11 }}>→ Global cues may override domestic setup</div>
-              <div style={{ color: '#FF3D00', fontSize: 11 }}>→ Low liquidity after 3:00 PM can widen spreads</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ color: '#FF3D00', fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>{'\u2192'} Expiry day theta decay accelerates after 1:30 PM</div>
+              <div style={{ color: '#FF3D00', fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>{'\u2192'} Global cues may override domestic setup</div>
+              <div style={{ color: '#FF3D00', fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>{'\u2192'} Low liquidity after 3:00 PM can widen spreads</div>
             </div>
           )}
-        </Section>
+        </div>
 
         {/* 5. ENTRY EXECUTION */}
-        <Section title="ENTRY EXECUTION">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Row label="Strike" value={strikeVal} />
-            <Row label="Type" value={typeVal} />
-            <Row label="Lot Size" value="25" />
-            <Row label="Entry Zone" value={entryZone} />
+        <div>
+          <div style={sectionHeader}>ENTRY EXECUTION</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
+              <span style={{ color: '#FFB300' }}>Strike: </span>
+              <span style={{ color: '#E8E8E8' }}>{strikeVal}</span>
+            </div>
+            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
+              <span style={{ color: '#FFB300' }}>Type: </span>
+              <span style={{ color: '#E8E8E8' }}>{typeVal}</span>
+            </div>
+            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
+              <span style={{ color: '#FFB300' }}>Lot Size: </span>
+              <span style={{ color: '#E8E8E8' }}>25</span>
+            </div>
+            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
+              <span style={{ color: '#FFB300' }}>Entry Zone: </span>
+              <span style={{ color: '#E8E8E8' }}>{entryZone}</span>
+            </div>
           </div>
-        </Section>
+        </div>
 
         {/* 6. STOP LOSS LOGIC */}
-        <Section title="STOP LOSS LOGIC">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <div style={{ fontSize: 11 }}>
+        <div>
+          <div style={sectionHeader}>STOP LOSS LOGIC</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
               <span style={{ color: '#FFB300' }}>Primary: </span>
-              <span style={{ color: '#E8E8E8' }}>15% of entry premium = if entered at ₹{entryArr[0] || '--'}, SL = </span>
-              <span style={{ color: '#FF3D00', fontWeight: 700 }}>₹{slPrice}</span>
+              <span style={{ color: '#E8E8E8' }}>15% of entry premium = if entered at </span>
+              <span style={{ color: '#FF3D00', fontWeight: 700 }}>{entryArr[0] || '--'}</span>
+              <span style={{ color: '#E8E8E8' }}>, SL = </span>
+              <span style={{ color: '#FF3D00', fontWeight: 700 }}>{slPrice}</span>
             </div>
-            <div style={{ fontSize: 11 }}>
+            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
               <span style={{ color: '#FFB300' }}>Structure: </span>
-              <span style={{ color: '#E8E8E8' }}>Exit if 15m candle closes below {supportLevel}</span>
+              <span style={{ color: '#FF3D00' }}>Exit if 15m candle closes below {supportLevel}</span>
             </div>
-            <div style={{ fontSize: 11 }}>
+            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
               <span style={{ color: '#FFB300' }}>Score: </span>
-              <span style={{ color: '#E8E8E8' }}>Exit if confluence score drops to 3 or below</span>
+              <span style={{ color: '#FF3D00' }}>Exit if confluence score drops to 3 or below</span>
             </div>
-            <div style={{ fontSize: 11 }}>
+            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>
               <span style={{ color: '#FFB300' }}>Rule: </span>
               <span style={{ color: '#FF3D00', fontWeight: 700 }}>NEVER average down on a losing options position</span>
             </div>
           </div>
-        </Section>
+        </div>
 
       </div>
     </div>
-  )
-}
-
-function Section({ title, children }) {
-  return (
-    <div style={{
-      background: '#0f0f0f',
-      border: '1px solid #1f1f1f',
-      borderRadius: 0,
-      padding: 12,
-    }}>
-      <div style={{
-        color: '#FFB300',
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: 2,
-        textTransform: 'uppercase',
-        marginBottom: 8,
-        fontFamily: "'IBM Plex Mono', monospace",
-      }}>
-        {title}
-      </div>
-      <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function Row({ label, value }) {
-  return (
-    <div style={{ fontSize: 11 }}>
-      <span style={{ color: '#FFB300' }}>{label}: </span>
-      <span style={{ color: '#E8E8E8' }}>{value}</span>
-    </div>
-  )
+  );
 }

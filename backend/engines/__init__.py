@@ -37,3 +37,6 @@ ALL_ENGINES = {
 
 def create_all_engines() -> dict:
     return {k: v() for k, v in ALL_ENGINES.items()}
+
+# Pre-built registry for convenience
+engine_registry = create_all_engines()

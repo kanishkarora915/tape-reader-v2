@@ -4,60 +4,115 @@ import TopBar from './TopBar'
 import TabSignal from './tabs/TabSignal'
 import TabOIChain from './tabs/TabOIChain'
 import TabEngines from './tabs/TabEngines'
+import TabTrades from './tabs/TabTrades'
 import TabAICard from './tabs/TabAICard'
 import TabLevels from './tabs/TabLevels'
 
-const TABS = ['SIGNAL', 'OI CHAIN', 'ENGINES', 'AI CARD', 'LEVELS']
+const ROOT_FONT = "'IBM Plex Mono', monospace"
+
+const TABS = ['SIGNAL', 'OI CHAIN', 'ENGINES', 'TRADES', 'AI CARD', 'LEVELS']
 
 const TAB_COMPONENTS = {
   'SIGNAL': TabSignal,
   'OI CHAIN': TabOIChain,
   'ENGINES': TabEngines,
+  'TRADES': TabTrades,
   'AI CARD': TabAICard,
   'LEVELS': TabLevels,
 }
 
+const TAB_PROPS = {
+  'SIGNAL': (d) => ({ signal: d.signal, engines: d.engines, tick: d.tick }),
+  'OI CHAIN': (d) => ({ chain: d.chain, engines: d.engines }),
+  'ENGINES': (d) => ({ engines: d.engines }),
+  'TRADES': (d) => ({ signal: d.signal, engines: d.engines, tick: d.tick }),
+  'AI CARD': (d) => ({ engines: d.engines, signal: d.signal }),
+  'LEVELS': (d) => ({ engines: d.engines, tick: d.tick }),
+}
+
 export default function Layout({ auth }) {
   const [activeTab, setActiveTab] = useState('SIGNAL')
+  const [hovered, setHovered] = useState(null)
   const { connected, tick, engines, chain, signal, alerts } = useBloomSocket()
 
   const ActiveComponent = TAB_COMPONENTS[activeTab]
+  const data = { tick, engines, chain, signal, alerts, auth }
+  const activeProps = TAB_PROPS[activeTab] ? TAB_PROPS[activeTab](data) : {}
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#0a0a0a] font-mono">
+    <div
+      style={{
+        fontFamily: ROOT_FONT,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        width: '100vw',
+        background: '#0a0a0a',
+        borderRadius: 0,
+        boxShadow: 'none',
+      }}
+    >
       {/* Top Bar */}
       <TopBar tick={tick} connected={connected} mode={null} />
 
       {/* Tab Bar */}
-      <div className="w-full h-8 bg-[#0f0f0f] border-b border-[#1f1f1f] flex items-center px-4 gap-0 font-mono">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 h-full text-[10px] tracking-[2px] uppercase font-bold cursor-pointer border-b-2 font-mono ${
-              activeTab === tab
-                ? 'text-[#FFB300] border-[#FFB300]'
-                : 'text-[#444444] border-transparent hover:text-[#E8E8E8]'
-            }`}
-            style={{ borderRadius: 0, boxShadow: 'none', background: 'none' }}
-          >
-            {tab}
-          </button>
-        ))}
+      <div
+        style={{
+          width: '100%',
+          height: 34,
+          background: '#0f0f0f',
+          borderBottom: '1px solid #1f1f1f',
+          display: 'flex',
+          alignItems: 'stretch',
+          borderRadius: 0,
+          boxShadow: 'none',
+        }}
+      >
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab
+          const isHover = hovered === tab && !isActive
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              onMouseEnter={() => setHovered(tab)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                fontFamily: 'inherit',
+                padding: '0 20px',
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: 2,
+                cursor: 'pointer',
+                color: isActive ? '#FFB300' : isHover ? '#888' : '#444',
+                borderBottom: isActive ? '2px solid #FFB300' : '2px solid transparent',
+                background: 'none',
+                border: 'none',
+                borderBottomWidth: 2,
+                borderBottomStyle: 'solid',
+                borderBottomColor: isActive ? '#FFB300' : 'transparent',
+                borderRadius: 0,
+                boxShadow: 'none',
+                outline: 'none',
+              }}
+            >
+              {tab}
+            </button>
+          )
+        })}
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto bg-[#0a0a0a] font-mono">
-        {ActiveComponent && (
-          <ActiveComponent
-            tick={tick}
-            engines={engines}
-            chain={chain}
-            signal={signal}
-            alerts={alerts}
-            auth={auth}
-          />
-        )}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          background: '#0a0a0a',
+          borderRadius: 0,
+          boxShadow: 'none',
+        }}
+      >
+        {ActiveComponent && <ActiveComponent {...activeProps} />}
       </div>
     </div>
   )

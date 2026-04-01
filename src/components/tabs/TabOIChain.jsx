@@ -2,27 +2,40 @@ import React, { useState, useMemo } from "react";
 
 /* ── helpers ── */
 function formatOI(n) {
-  if (n == null || isNaN(n)) return "—";
+  if (n == null || isNaN(n)) return "\u2014";
   if (n >= 10000000) return `${(n / 10000000).toFixed(2)}Cr`;
   if (n >= 100000) return `${(n / 100000).toFixed(1)}L`;
   return n.toLocaleString("en-IN");
 }
 
 function formatPct(n) {
-  if (n == null || isNaN(n)) return "—";
+  if (n == null || isNaN(n)) return "\u2014";
   const sign = n >= 0 ? "+" : "";
   return `${sign}${n.toFixed(1)}%`;
 }
+
+const SECTION_HEADER = {
+  fontSize: 10,
+  color: "#FFB300",
+  fontWeight: 600,
+  letterSpacing: 3,
+  textTransform: "uppercase",
+  borderBottom: "1px solid #1f1f1f",
+  paddingBottom: 8,
+  marginBottom: 12,
+};
+
+const GRID_COLS = "1fr 70px 70px 80px 90px 80px 70px 70px 1fr";
 
 /* ── component ── */
 export default function TabOIChain({ chain, engines }) {
   const [selectedIndex, setSelectedIndex] = useState("NIFTY");
 
   /* derived data */
-  const pcr = engines?.e06?.data?.pcr ?? "—";
-  const maxPain = engines?.e10?.data?.max_pain ?? "—";
-  const callWall = engines?.e05?.data?.call_wall ?? "—";
-  const putWall = engines?.e05?.data?.put_wall ?? "—";
+  const pcr = engines?.e06?.data?.pcr ?? "\u2014";
+  const maxPain = engines?.e10?.data?.max_pain ?? "\u2014";
+  const callWall = engines?.e05?.data?.call_wall ?? "\u2014";
+  const putWall = engines?.e05?.data?.put_wall ?? "\u2014";
 
   const rows = chain?.[selectedIndex] ?? [];
 
@@ -65,13 +78,14 @@ export default function TabOIChain({ chain, engines }) {
     );
     if (minCeChg.val < 0)
       parts.push(
-        `Call writers unwinding at ${minCeChg.strike} (${formatPct(minCeChg.val)}) — potential breakout zone.`
+        `Call writers unwinding at ${minCeChg.strike} (${formatPct(minCeChg.val)}) \u2014 potential breakout zone.`
       );
     if (minPeChg.val < 0)
       parts.push(
-        `Put writers covering at ${minPeChg.strike} (${formatPct(minPeChg.val)}) — support weakening.`
+        `Put writers covering at ${minPeChg.strike} (${formatPct(minPeChg.val)}) \u2014 support weakening.`
       );
-    if (maxPain !== "—") parts.push(`Max pain at ${maxPain} — price gravitates here near expiry.`);
+    if (maxPain !== "\u2014")
+      parts.push(`Max pain at ${maxPain} \u2014 price gravitates here near expiry.`);
     return parts.join(" ");
   }, [rows, maxPain]);
 
@@ -80,9 +94,9 @@ export default function TabOIChain({ chain, engines }) {
     return (
       <div
         style={{
-          fontFamily: "monospace",
+          fontFamily: "'IBM Plex Mono', monospace",
           background: "#0a0a0a",
-          color: "#444444",
+          color: "#333",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -90,310 +104,283 @@ export default function TabOIChain({ chain, engines }) {
           fontSize: 12,
         }}
       >
-        Login with Kite to see live OI chain
+        Connect to Kite to view live option chain
       </div>
     );
   }
 
-  const indices = Object.keys(chain);
+  const indices = ["NIFTY", "BANKNIFTY", "SENSEX"];
+
+  const statItems = [
+    { label: "PCR", value: pcr },
+    { label: "MAX PAIN", value: maxPain },
+    { label: "CALL WALL", value: callWall },
+    { label: "PUT WALL", value: putWall },
+    { label: "TOTAL CE OI", value: formatOI(totalCallOI) },
+    { label: "TOTAL PE OI", value: formatOI(totalPutOI) },
+  ];
+
+  const headerCols = [
+    { label: "CE OI", align: "right" },
+    { label: "CE \u0394", align: "right" },
+    { label: "CE LTP", align: "right" },
+    { label: "CE BAR", align: "right" },
+    { label: "STRIKE", align: "center" },
+    { label: "PUT BAR", align: "left" },
+    { label: "PUT LTP", align: "left" },
+    { label: "PE \u0394", align: "left" },
+    { label: "PE OI", align: "left" },
+  ];
 
   return (
-    <div style={{ fontFamily: "monospace", background: "#0a0a0a", color: "#E8E8E8", width: "100%" }}>
-      {/* ── panel ── */}
-      <div style={{ background: "#0f0f0f", border: "1px solid #1f1f1f", borderRadius: 0, padding: 8 }}>
+    <div
+      style={{
+        fontFamily: "'IBM Plex Mono', monospace",
+        background: "#0a0a0a",
+        color: "#E8E8E8",
+        padding: "16px 20px",
+        width: "100%",
+      }}
+    >
+      {/* ── section header ── */}
+      <div style={SECTION_HEADER}>
+        LIVE OPTIONS CHAIN \u2014 {selectedIndex} WEEKLY EXPIRY
+      </div>
 
-        {/* header */}
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: "#FFB300",
-            marginBottom: 6,
-          }}
-        >
-          LIVE OPTIONS CHAIN — {selectedIndex} WEEKLY EXPIRY
-        </div>
+      {/* ── sub-header stats row ── */}
+      <div
+        style={{
+          display: "flex",
+          gap: 24,
+          fontSize: 10,
+          marginBottom: 12,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        {statItems.map((item, i) => (
+          <React.Fragment key={item.label}>
+            {i > 0 && (
+              <span style={{ color: "#1f1f1f", fontSize: 10 }}>|</span>
+            )}
+            <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+              <span style={{ color: "#555" }}>{item.label}</span>
+              <span style={{ color: "#FFB300" }}>{item.value}</span>
+            </span>
+          </React.Fragment>
+        ))}
+      </div>
 
-        {/* sub-header stats */}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            flexWrap: "wrap",
-            fontSize: 10,
-            marginBottom: 8,
-            lineHeight: 1.6,
-          }}
-        >
-          <span>
-            <span style={{ color: "#444444" }}>PCR:</span>{" "}
-            <span style={{ color: "#FFB300" }}>{pcr}</span>
-          </span>
-          <span style={{ color: "#444444" }}>|</span>
-          <span>
-            <span style={{ color: "#444444" }}>MAX PAIN:</span>{" "}
-            <span style={{ color: "#FFB300" }}>{maxPain}</span>
-          </span>
-          <span style={{ color: "#444444" }}>|</span>
-          <span>
-            <span style={{ color: "#444444" }}>CALL WALL:</span>{" "}
-            <span style={{ color: "#FFB300" }}>{callWall}</span>
-          </span>
-          <span style={{ color: "#444444" }}>|</span>
-          <span>
-            <span style={{ color: "#444444" }}>PUT WALL:</span>{" "}
-            <span style={{ color: "#FFB300" }}>{putWall}</span>
-          </span>
-          <span style={{ color: "#444444" }}>|</span>
-          <span>
-            <span style={{ color: "#444444" }}>TOTAL CALL OI:</span>{" "}
-            <span style={{ color: "#FFB300" }}>{formatOI(totalCallOI)}</span>
-          </span>
-          <span style={{ color: "#444444" }}>|</span>
-          <span>
-            <span style={{ color: "#444444" }}>TOTAL PUT OI:</span>{" "}
-            <span style={{ color: "#FFB300" }}>{formatOI(totalPutOI)}</span>
-          </span>
-        </div>
-
-        {/* index tabs */}
-        {indices.length > 1 && (
-          <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-            {indices.map((idx) => (
-              <button
-                key={idx}
-                onClick={() => setSelectedIndex(idx)}
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  padding: "2px 8px",
-                  border: "1px solid #1f1f1f",
-                  borderRadius: 0,
-                  background: selectedIndex === idx ? "#1a1400" : "#0f0f0f",
-                  color: selectedIndex === idx ? "#FFB300" : "#444444",
-                  cursor: "pointer",
-                  outline: "none",
-                  boxShadow: "none",
-                }}
-              >
-                {idx}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* table */}
-        <div style={{ overflowX: "auto" }}>
-          <table
+      {/* ── index tabs ── */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 12 }}>
+        {indices.map((idx) => (
+          <button
+            key={idx}
+            onClick={() => setSelectedIndex(idx)}
             style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontFamily: "monospace",
-              fontSize: 10,
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              padding: "4px 12px",
+              border: "1px solid #1f1f1f",
+              borderRadius: 0,
+              boxShadow: "none",
+              background: selectedIndex === idx ? "#1a1400" : "#0f0f0f",
+              color: selectedIndex === idx ? "#FFB300" : "#555",
+              cursor: "pointer",
+              outline: "none",
+              marginRight: -1,
             }}
           >
-            <thead>
-              <tr
+            {idx}
+          </button>
+        ))}
+      </div>
+
+      {/* ── table header ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: GRID_COLS,
+          background: "#0f0f0f",
+          padding: "6px 0",
+          borderBottom: "1px solid #1f1f1f",
+        }}
+      >
+        {headerCols.map((col) => (
+          <div
+            key={col.label}
+            style={{
+              color: "#555",
+              fontSize: 9,
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              fontWeight: 600,
+              textAlign: col.align,
+              padding: "0 4px",
+            }}
+          >
+            {col.label}
+          </div>
+        ))}
+      </div>
+
+      {/* ── data rows ── */}
+      <div style={{ overflowY: "auto" }}>
+        {rows.map((row, i) => {
+          const isATM = !!row.atm;
+          const isMP = row.strike == maxPain;
+          const isCW = row.strike == callWall;
+          const isPW = row.strike == putWall;
+
+          const ceChg = Number(row.ce_chg) || 0;
+          const peChg = Number(row.pe_chg) || 0;
+          const ceBarW = ((Number(row.ce_oi) || 0) / maxOI) * 100;
+          const peBarW = ((Number(row.pe_oi) || 0) / maxOI) * 100;
+
+          let rowBg = "transparent";
+          if (isATM) rowBg = "#1a1400";
+          if (isMP) rowBg = "#001020";
+
+          let strikeSuffix = "";
+          if (isMP) strikeSuffix = " MP";
+          if (isCW) strikeSuffix += " \uD83E\uDDF1";
+          if (isPW) strikeSuffix += " \uD83D\uDEE1";
+
+          return (
+            <div
+              key={row.strike ?? i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: GRID_COLS,
+                padding: "4px 0",
+                borderBottom: "1px solid #141414",
+                fontSize: 11,
+                background: rowBg,
+              }}
+              onMouseEnter={(e) => {
+                if (!isATM && !isMP) e.currentTarget.style.background = "#161616";
+              }}
+              onMouseLeave={(e) => {
+                if (!isATM && !isMP) e.currentTarget.style.background = "transparent";
+              }}
+            >
+              {/* CE OI */}
+              <div style={{ color: "#E8E8E8", textAlign: "right", padding: "0 4px" }}>
+                {formatOI(row.ce_oi)}
+              </div>
+
+              {/* CE delta */}
+              <div
                 style={{
-                  background: "#0f0f0f",
-                  color: "#444444",
-                  fontSize: 9,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  position: "sticky",
-                  top: 0,
-                  zIndex: 2,
+                  color: ceChg >= 0 ? "#00C853" : "#FF3D00",
+                  textAlign: "right",
+                  padding: "0 4px",
                 }}
               >
-                {["CE OI", "CE OI \u0394", "CE LTP", "CE BAR", "STRIKE", "PUT BAR", "PUT LTP", "PE OI \u0394", "PE OI"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: "4px 4px",
-                        fontWeight: 600,
-                        borderBottom: "1px solid #1f1f1f",
-                        textAlign: h === "STRIKE" ? "center" : h.startsWith("CE") ? "right" : "left",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => {
-                const isATM = !!row.atm;
-                const isMP = row.strike === maxPain;
-                let rowBg = "transparent";
-                let rowColor = "#E8E8E8";
-                if (isATM) {
-                  rowBg = "#1a1400";
-                  rowColor = "#FFB300";
-                }
-                if (isMP) {
-                  rowBg = "#001020";
-                  rowColor = "#2196F3";
-                }
+                {formatPct(row.ce_chg)}
+              </div>
 
-                const ceChg = Number(row.ce_chg) || 0;
-                const peChg = Number(row.pe_chg) || 0;
-                const ceBarW = ((Number(row.ce_oi) || 0) / maxOI) * 100;
-                const peBarW = ((Number(row.pe_oi) || 0) / maxOI) * 100;
+              {/* CE LTP */}
+              <div style={{ color: "#E8E8E8", textAlign: "right", padding: "0 4px" }}>
+                {row.ce_ltp ?? "\u2014"}
+              </div>
 
-                return (
-                  <tr
-                    key={row.strike ?? i}
-                    className="data-row"
-                    style={{ background: rowBg, color: rowColor }}
-                    onMouseEnter={(e) => {
-                      if (!isATM && !isMP) e.currentTarget.style.background = "#161616";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isATM && !isMP) e.currentTarget.style.background = "transparent";
-                    }}
-                  >
-                    {/* CE OI */}
-                    <td style={{ padding: "2px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      {formatOI(row.ce_oi)}
-                    </td>
-                    {/* CE OI delta */}
-                    <td
-                      style={{
-                        padding: "2px 4px",
-                        textAlign: "right",
-                        fontSize: 10,
-                        color: ceChg >= 0 ? "#00C853" : "#FF3D00",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {formatPct(row.ce_chg)}
-                    </td>
-                    {/* CE LTP */}
-                    <td style={{ padding: "2px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      {row.ce_ltp ?? "—"}
-                    </td>
-                    {/* CE BAR */}
-                    <td style={{ padding: "2px 4px", textAlign: "right", width: 80 }}>
-                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                        <div
-                          className="oi-bar call"
-                          style={{
-                            width: `${ceBarW}%`,
-                            height: 6,
-                            background: "#FF3D00",
-                            borderRadius: 0,
-                            minWidth: ceBarW > 0 ? 1 : 0,
-                          }}
-                        />
-                      </div>
-                    </td>
-                    {/* STRIKE */}
-                    <td
-                      style={{
-                        padding: "2px 4px",
-                        textAlign: "center",
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                        background: isATM ? "#1a1400" : isMP ? "#001020" : "transparent",
-                        color: isATM ? "#FFB300" : isMP ? "#2196F3" : "#E8E8E8",
-                      }}
-                    >
-                      {isATM && <span style={{ color: "#FFB300", marginRight: 2 }}>{"\u2605"}</span>}
-                      {row.strike}
-                      {isMP && (
-                        <span
-                          style={{
-                            color: "#2196F3",
-                            fontSize: 8,
-                            marginLeft: 3,
-                            background: "#001020",
-                            padding: "0 2px",
-                          }}
-                        >
-                          MP
-                        </span>
-                      )}
-                      {row.strike === callWall && <span style={{ marginLeft: 2 }}>{"\uD83E\uDDF1"}</span>}
-                      {row.strike === putWall && <span style={{ marginLeft: 2 }}>{"\uD83D\uDEE1"}</span>}
-                    </td>
-                    {/* PUT BAR */}
-                    <td style={{ padding: "2px 4px", textAlign: "left", width: 80 }}>
-                      <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                        <div
-                          className="oi-bar put"
-                          style={{
-                            width: `${peBarW}%`,
-                            height: 6,
-                            background: "#00C853",
-                            borderRadius: 0,
-                            minWidth: peBarW > 0 ? 1 : 0,
-                          }}
-                        />
-                      </div>
-                    </td>
-                    {/* PUT LTP */}
-                    <td style={{ padding: "2px 4px", textAlign: "left", whiteSpace: "nowrap" }}>
-                      {row.pe_ltp ?? "—"}
-                    </td>
-                    {/* PE OI delta */}
-                    <td
-                      style={{
-                        padding: "2px 4px",
-                        textAlign: "left",
-                        fontSize: 10,
-                        color: peChg >= 0 ? "#00C853" : "#FF3D00",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {formatPct(row.pe_chg)}
-                    </td>
-                    {/* PE OI */}
-                    <td style={{ padding: "2px 4px", textAlign: "left", whiteSpace: "nowrap" }}>
-                      {formatOI(row.pe_oi)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+              {/* CE BAR */}
+              <div style={{ padding: "0 4px", display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                <div
+                  style={{
+                    width: `${ceBarW}%`,
+                    height: 12,
+                    background: "#FF3D00",
+                    minWidth: ceBarW > 0 ? 1 : 0,
+                  }}
+                />
+              </div>
 
-        {/* OI interpretation */}
-        {interpretation && (
-          <div style={{ marginTop: 10 }}>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#FFB300",
-                marginBottom: 4,
-              }}
-            >
-              OI INTERPRETATION:
+              {/* STRIKE */}
+              <div
+                style={{
+                  textAlign: "center",
+                  fontWeight: 700,
+                  padding: "0 4px",
+                  color: isATM ? "#FFB300" : isMP ? "#2196F3" : "#E8E8E8",
+                  background: isATM ? "#1a1400" : isMP ? "#001020" : "transparent",
+                }}
+              >
+                {isATM && "\u2605 "}
+                {row.strike}
+                {strikeSuffix}
+              </div>
+
+              {/* PUT BAR */}
+              <div style={{ padding: "0 4px", display: "flex", justifyContent: "flex-start", alignItems: "center" }}>
+                <div
+                  style={{
+                    width: `${peBarW}%`,
+                    height: 12,
+                    background: "#00C853",
+                    minWidth: peBarW > 0 ? 1 : 0,
+                  }}
+                />
+              </div>
+
+              {/* PUT LTP */}
+              <div style={{ color: "#E8E8E8", textAlign: "left", padding: "0 4px" }}>
+                {row.pe_ltp ?? "\u2014"}
+              </div>
+
+              {/* PE delta */}
+              <div
+                style={{
+                  color: peChg >= 0 ? "#00C853" : "#FF3D00",
+                  textAlign: "left",
+                  padding: "0 4px",
+                }}
+              >
+                {formatPct(row.pe_chg)}
+              </div>
+
+              {/* PE OI */}
+              <div style={{ color: "#E8E8E8", textAlign: "left", padding: "0 4px" }}>
+                {formatOI(row.pe_oi)}
+              </div>
             </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: "#7A5600",
-                fontStyle: "italic",
-                lineHeight: 1.8,
-              }}
-            >
-              {interpretation}
-            </div>
-          </div>
-        )}
+          );
+        })}
       </div>
+
+      {/* ── OI interpretation ── */}
+      {interpretation && (
+        <div style={{ marginTop: 16 }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "#FFB300",
+              fontWeight: 600,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+              borderBottom: "1px solid #1f1f1f",
+              paddingBottom: 8,
+              marginBottom: 12,
+            }}
+          >
+            OI INTERPRETATION:
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              color: "#7A5600",
+              fontStyle: "italic",
+              lineHeight: 1.8,
+            }}
+          >
+            {interpretation}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

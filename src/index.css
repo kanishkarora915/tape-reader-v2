@@ -97,3 +97,16 @@ body {
 .oi-bar { height: 14px; display: inline-block; min-width: 2px; }
 .oi-bar.call { background: var(--color-red); }
 .oi-bar.put { background: var(--color-green); }
+
+/* Premium hover transitions */
+.premium-btn {
+  transition: background-color 0.15s ease;
+}
+.premium-btn:hover { background-color: #E6A200; }
+
+/* Text pulse for loading state */
+@keyframes textPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.text-pulse { animation: textPulse 1.5s infinite; }

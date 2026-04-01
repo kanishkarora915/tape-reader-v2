@@ -1,34 +1,18 @@
-import React, { useMemo } from 'react';
-
-const COLORS = {
-  bg: '#0a0a0a',
-  panel: '#0f0f0f',
-  border: '#1f1f1f',
-  amber: '#FFB300',
-  amberDim: '#7A5600',
-  white: '#E8E8E8',
-  green: '#00C853',
-  red: '#FF3D00',
-  blue: '#2196F3',
-  gray: '#444444',
-  hover: '#161616',
-};
-
-const font = { fontFamily: '"IBM Plex Mono", monospace' };
+import React, { useMemo, useState } from 'react';
 
 function safe(val) {
   return val != null && val !== '' && val !== undefined;
 }
 
 function fmt(n) {
-  if (!safe(n)) return '—';
+  if (!safe(n)) return '\u2014';
   const num = Number(n);
-  return isNaN(num) ? '—' : num.toLocaleString('en-IN', { maximumFractionDigits: 1 });
+  return isNaN(num) ? '\u2014' : num.toLocaleString('en-IN', { maximumFractionDigits: 1 });
 }
 
 function chgColor(v) {
-  if (!safe(v)) return COLORS.gray;
-  return Number(v) >= 0 ? COLORS.green : COLORS.red;
+  if (!safe(v)) return '#444';
+  return Number(v) >= 0 ? '#00C853' : '#FF3D00';
 }
 
 function chgPrefix(v) {
@@ -52,20 +36,20 @@ export default function TabLevels({ engines, tick }) {
     const ltp = Number(niftyLtp);
     const atm = Math.round(ltp / 50) * 50;
     const rows = [
-      { label: 'R3', price: ltp + 300, type: 'Pivot Resistance', color: COLORS.gray },
-      { label: 'R2', price: ltp + 200, type: 'Pivot Resistance', color: COLORS.gray },
-      { label: 'R1', price: ltp + 100, type: 'Pivot Resistance', color: COLORS.green },
-      { label: 'CALL WALL', price: e05?.call_wall, type: 'GEX Resistance', color: COLORS.red },
-      { label: 'VWAP +2SD', price: e08?.sd2_upper, type: 'Stretch Zone', color: COLORS.gray },
-      { label: 'ATM STRIKE', price: atm, type: '\u2605 CURRENT', color: COLORS.amber, highlight: true },
-      { label: 'VWAP +1SD', price: e08?.sd1_upper, type: 'First Target', color: COLORS.gray },
-      { label: 'DAILY VWAP', price: e08?.d_vwap, type: 'Support', color: COLORS.blue },
-      { label: 'S1', price: ltp - 100, type: 'Pivot Support', color: COLORS.green },
-      { label: 'PUT WALL', price: e05?.put_wall, type: 'GEX Support', color: COLORS.green },
-      { label: 'MAX PAIN', price: e10?.max_pain, type: 'Expiry Gravity', color: COLORS.blue },
-      { label: 'S2', price: ltp - 200, type: 'Pivot Support', color: COLORS.gray },
-      { label: 'S3', price: ltp - 300, type: 'Pivot Support', color: COLORS.gray },
-      { label: 'WEEKLY VWAP', price: e08?.w_vwap, type: 'Major Support', color: COLORS.blue },
+      { label: 'R3', price: ltp + 300, type: 'Pivot Resistance', color: '#444' },
+      { label: 'R2', price: ltp + 200, type: 'Pivot Resistance', color: '#444' },
+      { label: 'R1', price: ltp + 100, type: 'Pivot Resistance', color: '#00C853' },
+      { label: 'CALL WALL', price: e05?.call_wall, type: 'GEX Resistance', color: '#FF3D00' },
+      { label: 'VWAP +2SD', price: e08?.sd2_upper, type: 'Stretch Zone', color: '#444' },
+      { label: 'ATM STRIKE', price: atm, type: '\u2605 CURRENT', color: '#FFB300', highlight: true },
+      { label: 'VWAP +1SD', price: e08?.sd1_upper, type: 'First Target', color: '#444' },
+      { label: 'DAILY VWAP', price: e08?.d_vwap, type: 'Support', color: '#2196F3' },
+      { label: 'S1', price: ltp - 100, type: 'Pivot Support', color: '#00C853' },
+      { label: 'PUT WALL', price: e05?.put_wall, type: 'GEX Support', color: '#00C853' },
+      { label: 'MAX PAIN', price: e10?.max_pain, type: 'Expiry Gravity', color: '#2196F3' },
+      { label: 'S2', price: ltp - 200, type: 'Pivot Support', color: '#444' },
+      { label: 'S3', price: ltp - 300, type: 'Pivot Support', color: '#444' },
+      { label: 'WEEKLY VWAP', price: e08?.w_vwap, type: 'Major Support', color: '#2196F3' },
     ].filter(r => safe(r.price));
     rows.sort((a, b) => Number(b.price) - Number(a.price));
     return rows;
@@ -73,80 +57,132 @@ export default function TabLevels({ engines, tick }) {
 
   const pcr = e06?.pcr != null ? Number(e06.pcr) : null;
   const weeklyBias = pcr != null
-    ? pcr > 1.1 ? { text: 'BULLISH WEEK', color: COLORS.green }
-      : pcr < 0.8 ? { text: 'BEARISH WEEK', color: COLORS.red }
-      : { text: 'NEUTRAL WEEK', color: COLORS.gray }
+    ? pcr > 1.1 ? { text: 'BULLISH WEEK', color: '#00C853' }
+      : pcr < 0.8 ? { text: 'BEARISH WEEK', color: '#FF3D00' }
+      : { text: 'NEUTRAL WEEK', color: '#444' }
     : null;
 
   const oiTrend = pcr != null
     ? pcr > 1.1
-      ? { text: 'PUT HEAVY = bullish bias', color: COLORS.green }
-      : { text: 'CALL HEAVY = bearish bias', color: COLORS.red }
+      ? { text: 'PUT HEAVY = bullish bias', color: '#00C853' }
+      : { text: 'CALL HEAVY = bearish bias', color: '#FF3D00' }
     : null;
+
+  const sectionHeader = {
+    fontSize: 10,
+    color: '#FFB300',
+    fontWeight: 600,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    borderBottom: '1px solid #1f1f1f',
+    paddingBottom: 8,
+    marginBottom: 12,
+    fontFamily: "'IBM Plex Mono', monospace",
+  };
 
   if (!hasData) {
     return (
-      <div style={{ ...font, background: COLORS.bg, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ color: COLORS.gray, fontSize: 13 }}>Login with Kite to view levels</span>
+      <div style={{
+        fontFamily: "'IBM Plex Mono', monospace",
+        background: '#0a0a0a',
+        padding: '16px 20px',
+        minHeight: 400,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <span style={{ color: '#333', fontSize: 13, letterSpacing: 2, fontFamily: "'IBM Plex Mono', monospace" }}>
+          Login to view levels
+        </span>
       </div>
     );
   }
 
   return (
-    <div style={{ ...font, background: COLORS.bg, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: '#0a0a0a',
+      padding: '16px 20px',
+    }}>
       {/* Title */}
-      <div style={{ padding: '8px 12px', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.amber, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase' }}>
-        NEXT DAY &amp; WEEKLY LEVELS — NIFTY
+      <div style={{
+        color: '#FFB300',
+        fontSize: 15,
+        fontWeight: 700,
+        letterSpacing: 4,
+        textTransform: 'uppercase',
+        marginBottom: 20,
+        fontFamily: "'IBM Plex Mono', monospace",
+      }}>
+        NEXT DAY & WEEKLY LEVELS — NIFTY
       </div>
 
-      {/* 3-col grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', flex: 1, minHeight: 0 }}>
+      {/* 3-column grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr',
+        gap: 0,
+      }}>
 
         {/* COL 1: TODAY'S KEY LEVELS */}
-        <div style={{ borderRight: `1px solid ${COLORS.border}`, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-          <div style={{ padding: '6px 10px', color: COLORS.amber, fontSize: 10, fontWeight: 700, letterSpacing: 1, borderBottom: `1px solid ${COLORS.border}` }}>
-            TODAY'S KEY LEVELS
-          </div>
+        <div style={{ borderRight: '1px solid #1f1f1f', paddingRight: 16 }}>
+          <div style={sectionHeader}>TODAY'S KEY LEVELS</div>
+
           {/* Table header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '4px 10px', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.gray, fontSize: 10, fontWeight: 600 }}>
-            <span>LEVEL</span>
-            <span style={{ textAlign: 'right' }}>PRICE</span>
-            <span style={{ textAlign: 'right' }}>TYPE</span>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            padding: '4px 8px',
+            borderBottom: '1px solid #1f1f1f',
+            marginBottom: 2,
+          }}>
+            <span style={{ color: '#444', fontSize: 9, fontWeight: 600, letterSpacing: 1, fontFamily: "'IBM Plex Mono', monospace" }}>LEVEL</span>
+            <span style={{ color: '#444', fontSize: 9, fontWeight: 600, letterSpacing: 1, textAlign: 'right', fontFamily: "'IBM Plex Mono', monospace" }}>PRICE</span>
+            <span style={{ color: '#444', fontSize: 9, fontWeight: 600, letterSpacing: 1, textAlign: 'right', fontFamily: "'IBM Plex Mono', monospace" }}>TYPE</span>
           </div>
+
           {/* Rows */}
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            {levels.map((row, i) => (
-              <LevelRow key={i} row={row} />
-            ))}
-          </div>
+          {levels.map((row, i) => (
+            <LevelRow key={i} row={row} />
+          ))}
         </div>
 
         {/* COL 2: WEEKLY OI ANALYSIS */}
-        <div style={{ borderRight: `1px solid ${COLORS.border}`, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-          <div style={{ padding: '6px 10px', color: COLORS.amber, fontSize: 10, fontWeight: 700, letterSpacing: 1, borderBottom: `1px solid ${COLORS.border}` }}>
-            WEEKLY OI ANALYSIS
-          </div>
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <InfoRow label="WEEKLY PCR" value={safe(pcr) ? pcr.toFixed(2) : '—'} />
-            <InfoRow label="MAX PAIN" value={fmt(e10?.max_pain)} />
-            <InfoRow label="DAYS TO EXPIRY" value={safe(e10?.days_to_expiry) ? e10.days_to_expiry : '—'} />
-            <InfoRow label="EXPIRY DRIFT" value={e10?.oi_drift_direction || '—'} valueColor={COLORS.amber} />
-            <InfoRow label="EXPIRY TYPE" value={e10?.expiry_type || '—'} />
+        <div style={{ borderRight: '1px solid #1f1f1f', paddingLeft: 16, paddingRight: 16 }}>
+          <div style={sectionHeader}>WEEKLY OI ANALYSIS</div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <StatRow label="PCR" value={safe(pcr) ? pcr.toFixed(2) : '\u2014'} />
+            <StatRow label="MAX PAIN" value={fmt(e10?.max_pain)} />
+            <StatRow label="DAYS TO EXPIRY" value={safe(e10?.days_to_expiry) ? e10.days_to_expiry : '\u2014'} />
             {oiTrend && (
-              <InfoRow label="OI TREND" value={oiTrend.text} valueColor={oiTrend.color} />
+              <StatRow label="OI TREND" value={oiTrend.text} valueColor={oiTrend.color} />
             )}
 
             {/* Weekly bias big label */}
             {weeklyBias && (
-              <div style={{ marginTop: 16, textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: weeklyBias.color, letterSpacing: 1.5 }}>
+              <div style={{ marginTop: 20, textAlign: 'center' }}>
+                <div style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: weeklyBias.color,
+                  letterSpacing: 2,
+                  fontFamily: "'IBM Plex Mono', monospace",
+                }}>
                   {weeklyBias.text}
                 </div>
               </div>
             )}
 
             {/* Interpretation */}
-            <div style={{ marginTop: 8, color: COLORS.amberDim, fontSize: 10, fontStyle: 'italic', lineHeight: 1.5 }}>
+            <div style={{
+              marginTop: 12,
+              color: '#7A5600',
+              fontSize: 10,
+              fontStyle: 'italic',
+              lineHeight: 1.6,
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}>
               {pcr != null
                 ? pcr > 1.1
                   ? 'High PCR indicates aggressive put writing by institutional players. Market makers are positioned for upside. Watch for dips to be bought near put wall and max pain levels.'
@@ -159,50 +195,73 @@ export default function TabLevels({ engines, tick }) {
         </div>
 
         {/* COL 3: PRE-MARKET TOMORROW */}
-        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-          <div style={{ padding: '6px 10px', color: COLORS.amber, fontSize: 10, fontWeight: 700, letterSpacing: 1, borderBottom: `1px solid ${COLORS.border}` }}>
-            PRE-MARKET TOMORROW
-          </div>
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <InfoRow label="GIFT NIFTY" value={safe(e23?.gift_nifty) ? fmt(e23.gift_nifty) : '—'} />
-            <InfoRow label="EXPECTED GAP" value={e23?.morning_bias || '—'} />
-            <InfoRow label="GAP FILL LEVEL" value={safe(e23?.gap_fill_target) ? fmt(e23.gap_fill_target) : '—'} />
+        <div style={{ paddingLeft: 16 }}>
+          <div style={sectionHeader}>PRE-MARKET TOMORROW</div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <StatRow label="GIFT NIFTY" value={safe(e23?.gift_nifty) ? fmt(e23.gift_nifty) : '\u2014'} />
+            <StatRow label="EXPECTED GAP" value={e23?.morning_bias || '\u2014'} />
+            <StatRow label="GAP FILL" value={safe(e23?.gap_fill_target) ? fmt(e23.gap_fill_target) : '\u2014'} />
 
             {/* Global cues */}
             {Array.isArray(e23?.global_cues) && e23.global_cues.length > 0 && (
-              <div style={{ marginTop: 4 }}>
-                <div style={{ color: COLORS.gray, fontSize: 10, fontWeight: 600, marginBottom: 4 }}>GLOBAL CUES</div>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ color: '#444', fontSize: 9, fontWeight: 600, letterSpacing: 2, marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  GLOBAL CUES
+                </div>
                 {e23.global_cues.map((cue, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 11 }}>
-                    <span style={{ color: COLORS.white }}>{cue.name}</span>
+                  <div key={i} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '3px 0',
+                    fontSize: 11,
+                    fontFamily: "'IBM Plex Mono', monospace",
+                  }}>
+                    <span style={{ color: '#E8E8E8' }}>{cue.name}</span>
                     <span style={{ color: chgColor(cue.change) }}>
-                      {chgPrefix(cue.change)}{safe(cue.change) ? Number(cue.change).toFixed(2) : '—'}%
+                      {chgPrefix(cue.change)}{safe(cue.change) ? Number(cue.change).toFixed(2) : '\u2014'}%
                     </span>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Tomorrow bias */}
+            {/* Tomorrow Bias */}
             {safe(e23?.morning_bias) && (
-              <div style={{ marginTop: 12, textAlign: 'center' }}>
-                <div style={{ color: COLORS.gray, fontSize: 10, marginBottom: 4 }}>TOMORROW BIAS</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.amber, letterSpacing: 1 }}>
+              <div style={{ marginTop: 16, textAlign: 'center' }}>
+                <div style={{ color: '#444', fontSize: 9, letterSpacing: 2, marginBottom: 4, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  TOMORROW BIAS
+                </div>
+                <div style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#FFB300',
+                  letterSpacing: 2,
+                  fontFamily: "'IBM Plex Mono', monospace",
+                }}>
                   {e23.morning_bias}
                 </div>
               </div>
             )}
 
-            <InfoRow label="FII DIRECTION" value={e11?.fii_3day_trend || '—'} />
+            <StatRow label="FII DIRECTION" value={e11?.fii_3day_trend || '\u2014'} />
 
             {/* Prediction */}
-            <div style={{ marginTop: 8, color: COLORS.amberDim, fontSize: 10, fontStyle: 'italic', lineHeight: 1.5 }}>
+            <div style={{
+              marginTop: 12,
+              color: '#7A5600',
+              fontSize: 10,
+              fontStyle: 'italic',
+              lineHeight: 1.6,
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}>
               {safe(e23?.morning_bias) && safe(e11?.fii_3day_trend)
                 ? `Pre-market signals suggest ${(e23.morning_bias || '').toLowerCase()} opening. FII trend is ${(e11.fii_3day_trend || '').toLowerCase()}. Watch Gift Nifty and SGX levels for confirmation before 9:00 AM. Gap fills are high-probability setups in the first 30 minutes.`
                 : 'Awaiting pre-market data. Global cues will update after US market close.'}
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
@@ -211,11 +270,11 @@ export default function TabLevels({ engines, tick }) {
 /* --- Sub-components --- */
 
 function LevelRow({ row }) {
-  const [hovered, setHovered] = React.useState(false);
+  const [hovered, setHovered] = useState(false);
   const bg = row.highlight
     ? '#1a1400'
     : hovered
-      ? COLORS.hover
+      ? '#161616'
       : 'transparent';
 
   return (
@@ -225,25 +284,32 @@ function LevelRow({ row }) {
       style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr 1fr',
-        padding: '3px 10px',
-        fontSize: 11,
+        padding: '4px 8px',
+        fontSize: 10,
         background: bg,
-        borderBottom: `1px solid ${COLORS.border}`,
+        borderBottom: '1px solid #141414',
         cursor: 'default',
+        fontFamily: "'IBM Plex Mono', monospace",
       }}
     >
       <span style={{ color: row.color, fontWeight: 600 }}>{row.label}</span>
-      <span style={{ color: COLORS.white, textAlign: 'right' }}>{fmt(row.price)}</span>
-      <span style={{ color: row.color, textAlign: 'right', fontSize: 10 }}>{row.type}</span>
+      <span style={{ color: '#E8E8E8', textAlign: 'right' }}>{fmt(row.price)}</span>
+      <span style={{ color: row.color, textAlign: 'right', fontSize: 9 }}>{row.type}</span>
     </div>
   );
 }
 
-function InfoRow({ label, value, valueColor }) {
+function StatRow({ label, value, valueColor }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11 }}>
-      <span style={{ color: COLORS.gray }}>{label}</span>
-      <span style={{ color: valueColor || COLORS.white, fontWeight: 600 }}>{value}</span>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      fontSize: 11,
+      fontFamily: "'IBM Plex Mono', monospace",
+    }}>
+      <span style={{ color: '#444' }}>{label}</span>
+      <span style={{ color: valueColor || '#E8E8E8', fontWeight: 600 }}>{value}</span>
     </div>
   );
 }

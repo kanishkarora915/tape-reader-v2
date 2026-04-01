@@ -20,6 +20,7 @@ from auth import AuthManager
 from ws_manager import WSManager
 from db import init_db, close_db, fetch
 from market_engine import MarketEngine
+from trade_tracker import TradeTracker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 logger = logging.getLogger("buyby")
@@ -29,16 +30,18 @@ logger = logging.getLogger("buyby")
 auth_manager: AuthManager | None = None
 ws_manager: WSManager | None = None
 market_engine: MarketEngine | None = None
+trade_tracker: TradeTracker | None = None
 
 
 # ── Lifespan ────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global auth_manager, ws_manager
+    global auth_manager, ws_manager, trade_tracker
     await init_db()
     auth_manager = AuthManager()
     ws_manager = WSManager()
+    trade_tracker = TradeTracker()
     logger.info("[BUYBY] Backend started")
     # Start demo broadcaster (sends data to WS clients when no live engine)
     from demo_data import run_demo_broadcast
@@ -203,6 +206,20 @@ async def get_chain(index: str):
     idx = index.upper()
     chain = market_engine.chains.get(idx, {})
     return {"index": idx, "chain": chain}
+
+
+# ── Trade Routes ───────────────────────────────────────────────────────
+
+@app.get("/api/trades")
+async def get_trades():
+    """Get today's trade log."""
+    return {"trades": trade_tracker.get_today_trades()}
+
+
+@app.get("/api/trade-stats")
+async def get_trade_stats():
+    """Get trade statistics and learning insights."""
+    return trade_tracker.get_stats()
 
 
 # ── WebSocket ───────────────────────────────────────────────────────────
