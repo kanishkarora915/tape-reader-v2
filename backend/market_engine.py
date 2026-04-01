@@ -154,21 +154,34 @@ class MarketEngine:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
-                # Add spot prices
+                # Add spot prices + change data
                 for idx_name, cfg in INDEX_CONFIG.items():
                     spot_tick = self.prices.get(cfg["spot_token"], {})
-                    context[f"{idx_name.lower()}_spot"] = spot_tick.get("last_price", 0)
+                    ltp = spot_tick.get("last_price", 0)
+                    ohlc = spot_tick.get("ohlc", {})
+                    prev_close = ohlc.get("close", ltp) or ltp
+                    change = ltp - prev_close if ltp and prev_close else 0
+                    change_pct = (change / prev_close * 100) if prev_close else 0
+                    prefix = idx_name.lower()
+                    context[f"{prefix}_spot"] = ltp
+                    context[f"{prefix}_change"] = round(change, 2)
+                    context[f"{prefix}_change_pct"] = round(change_pct, 2)
+                    context[f"{prefix}_high"] = ohlc.get("high", ltp)
+                    context[f"{prefix}_low"] = ohlc.get("low", ltp)
 
                 # Run all engines
-                for engine_id, engine_cls in self.engine_registry.items():
+                for engine_id, engine_inst in self.engine_registry.items():
                     try:
-                        result = engine_cls.evaluate(context)
-                        self.engine_results[engine_id] = result
+                        engine_inst.run(context)
+                        self.engine_results[engine_id] = engine_inst.get_state()
                     except Exception as e:
                         self.engine_results[engine_id] = {
-                            "id": engine_id,
-                            "verdict": "ERROR",
-                            "error": str(e),
+                            "name": getattr(engine_inst, 'name', engine_id),
+                            "tier": getattr(engine_inst, 'tier', 0),
+                            "verdict": "NEUTRAL",
+                            "direction": "NEUTRAL",
+                            "confidence": 0,
+                            "data": {"error": str(e)},
                         }
 
                 # Run signal combiner
