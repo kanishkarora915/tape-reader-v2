@@ -17,9 +17,9 @@ export default function App() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-bg">
-        <div className="text-center">
-          <div className="text-4xl font-black tracking-[6px] text-neon mb-3">BUYBY</div>
-          <div className="text-sm tracking-[4px] text-text-dim">LOADING...</div>
+        <div className="text-center font-mono">
+          <div className="text-2xl font-bold text-amber tracking-[4px] mb-2">BLOOM</div>
+          <div className="text-xs text-gray tracking-[3px]">LOADING TERMINAL...</div>
         </div>
       </div>
     )

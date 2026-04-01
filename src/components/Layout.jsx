@@ -1,66 +1,63 @@
-import React from 'react'
+import { useState } from 'react'
 import useBloomSocket from '../hooks/useBloomSocket'
 import TopBar from './TopBar'
+import TabSignal from './tabs/TabSignal'
+import TabOIChain from './tabs/TabOIChain'
+import TabEngines from './tabs/TabEngines'
+import TabAICard from './tabs/TabAICard'
+import TabLevels from './tabs/TabLevels'
 
-// Row 1
-import SignalCommand from './panels/SignalCommand'
-import OIChainLive from './panels/OIChainLive'
-// Row 2
-import GEXMap from './panels/GEXMap'
-import IVRegimeGauge from './panels/IVRegimeGauge'
-import MarketStructure from './panels/MarketStructure'
-import WriterTrapFeed from './panels/WriterTrapFeed'
-// Row 3
-import VWAPBoard from './panels/VWAPBoard'
-import TechnicalVotes from './panels/TechnicalVotes'
-import ExpiryTracker from './panels/ExpiryTracker'
-import FIIDIIBoard from './panels/FIIDIIBoard'
-// Row 4
-import BigMoveRadar from './panels/BigMoveRadar'
-import VolatilityPanel from './panels/VolatilityPanel'
-import PreMarketBrief from './panels/PreMarketBrief'
-import StatisticalEdge from './panels/StatisticalEdge'
-// Row 5
-import AITradeCard from './panels/AITradeCard'
+const TABS = ['SIGNAL', 'OI CHAIN', 'ENGINES', 'AI CARD', 'LEVELS']
 
-export default function Layout() {
+const TAB_COMPONENTS = {
+  'SIGNAL': TabSignal,
+  'OI CHAIN': TabOIChain,
+  'ENGINES': TabEngines,
+  'AI CARD': TabAICard,
+  'LEVELS': TabLevels,
+}
+
+export default function Layout({ auth }) {
+  const [activeTab, setActiveTab] = useState('SIGNAL')
   const { connected, tick, engines, chain, signal, alerts } = useBloomSocket()
 
+  const ActiveComponent = TAB_COMPONENTS[activeTab]
+
   return (
-    <div className="min-h-screen bg-bg1 text-text">
-      <TopBar tick={tick} connected={connected} />
+    <div className="flex flex-col h-screen w-screen bg-[#0a0a0a] font-mono">
+      {/* Top Bar */}
+      <TopBar tick={tick} connected={connected} mode={null} />
 
-      <div className="grid grid-cols-4 gap-3 p-4">
-        {/* Row 1 */}
-        <div className="col-span-2">
-          <SignalCommand signal={signal} alerts={alerts} engines={engines} />
-        </div>
-        <div className="col-span-2">
-          <OIChainLive chain={chain} tick={tick} />
-        </div>
+      {/* Tab Bar */}
+      <div className="w-full h-8 bg-[#0f0f0f] border-b border-[#1f1f1f] flex items-center px-4 gap-0 font-mono">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 h-full text-[10px] tracking-[2px] uppercase font-bold cursor-pointer border-b-2 font-mono ${
+              activeTab === tab
+                ? 'text-[#FFB300] border-[#FFB300]'
+                : 'text-[#444444] border-transparent hover:text-[#E8E8E8]'
+            }`}
+            style={{ borderRadius: 0, boxShadow: 'none', background: 'none' }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-        {/* Row 2 */}
-        <GEXMap engines={engines} tick={tick} />
-        <IVRegimeGauge engines={engines} tick={tick} />
-        <MarketStructure engines={engines} tick={tick} />
-        <WriterTrapFeed engines={engines} alerts={alerts} />
-
-        {/* Row 3 */}
-        <VWAPBoard engines={engines} tick={tick} />
-        <TechnicalVotes engines={engines} tick={tick} />
-        <ExpiryTracker engines={engines} tick={tick} />
-        <FIIDIIBoard engines={engines} />
-
-        {/* Row 4 */}
-        <BigMoveRadar engines={engines} alerts={alerts} />
-        <VolatilityPanel engines={engines} tick={tick} />
-        <PreMarketBrief engines={engines} />
-        <StatisticalEdge engines={engines} tick={tick} />
-
-        {/* Row 5 */}
-        <div className="col-span-4">
-          <AITradeCard signal={signal} engines={engines} tick={tick} />
-        </div>
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto bg-[#0a0a0a] font-mono">
+        {ActiveComponent && (
+          <ActiveComponent
+            tick={tick}
+            engines={engines}
+            chain={chain}
+            signal={signal}
+            alerts={alerts}
+            auth={auth}
+          />
+        )}
       </div>
     </div>
   )

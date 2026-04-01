@@ -10,13 +10,9 @@ export default function Login({ onAuth }) {
     try {
       const res = await fetch('/api/login', { method: 'POST' })
       const data = await res.json()
-      if (data.login_url) {
-        window.location.href = data.login_url
-      } else if (data.authenticated) {
-        onAuth(data)
-      } else {
-        setError(data.error || 'Login failed')
-      }
+      if (data.login_url) window.location.href = data.login_url
+      else if (data.authenticated) onAuth(data)
+      else setError(data.error || 'Login failed')
     } catch (e) {
       setError('Server unreachable')
     } finally {
@@ -25,52 +21,41 @@ export default function Login({ onAuth }) {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-bg">
-      <div className="w-[420px] bg-surface border border-border rounded-2xl p-10 text-center">
-        {/* Logo */}
-        <div className="mb-8">
-          <div className="text-5xl font-black tracking-[8px] text-neon mb-2"
-               style={{textShadow: '0 0 30px rgba(0,212,255,0.3)'}}>
-            BUYBY
-          </div>
-          <div className="text-xs tracking-[6px] text-text-dim uppercase">
-            Trading Intelligence v2.0
-          </div>
-          <div className="mt-4 flex justify-center gap-2">
-            {['24 ENGINES', '4 TIERS', '3 MODES'].map(t => (
-              <span key={t} className="text-[10px] tracking-wider px-2 py-0.5 rounded bg-neon-dim text-neon border border-border-bright">
-                {t}
-              </span>
-            ))}
-          </div>
+    <div className="flex items-center justify-center min-h-screen bg-bg font-mono">
+      <div className="w-[400px] bg-panel border border-border p-8">
+        <div className="text-center mb-6">
+          <div className="text-3xl font-bold text-amber tracking-[6px] mb-1">BLOOM</div>
+          <div className="text-[10px] text-gray tracking-[4px] uppercase">Trading Terminal v2.0</div>
         </div>
 
-        {/* Instruments */}
-        <div className="flex justify-center gap-6 mb-8 text-text-dim text-xs tracking-widest">
-          <span>NIFTY</span>
-          <span className="text-text-muted">|</span>
-          <span>BANKNIFTY</span>
-          <span className="text-text-muted">|</span>
+        <div className="flex justify-center gap-4 mb-6 text-[10px] text-gray tracking-widest">
+          <span>NIFTY</span><span className="text-border">|</span>
+          <span>BANKNIFTY</span><span className="text-border">|</span>
           <span>SENSEX</span>
         </div>
 
-        {/* Login Button */}
+        <div className="flex justify-center gap-2 mb-6">
+          {['24 ENGINES', '4 TIERS', '3 MODES'].map(t => (
+            <span key={t} className="text-[9px] tracking-wider px-2 py-0.5 border border-amber text-amber">
+              {t}
+            </span>
+          ))}
+        </div>
+
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="w-full py-3.5 rounded-lg font-bold text-sm tracking-[3px] uppercase
-                     bg-gradient-to-r from-neon/90 to-neon/70 text-bg
-                     hover:shadow-[0_0_25px_rgba(0,212,255,0.35)] transition-all duration-300
-                     disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="w-full py-2.5 font-bold text-[11px] tracking-[3px] uppercase cursor-pointer
+                     bg-amber text-bg border border-amber
+                     hover:bg-amber/80 transition-colors
+                     disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {loading ? 'CONNECTING...' : 'LOGIN WITH ZERODHA'}
         </button>
 
-        {error && (
-          <div className="mt-4 text-bear text-xs tracking-wider">{error}</div>
-        )}
+        {error && <div className="mt-3 text-red text-[10px] tracking-wider text-center">{error}</div>}
 
-        <div className="mt-6 text-[10px] text-text-muted tracking-wider">
+        <div className="mt-4 text-[9px] text-gray tracking-wider text-center">
           Kite Connect API | Options Buyer Intelligence
         </div>
       </div>

@@ -1,70 +1,99 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #06080d;
-  --color-bg2: #0a0e17;
-  --color-surface: #0e1420;
-  --color-surface2: #131c2c;
-  --color-border: rgba(0, 200, 255, 0.08);
-  --color-border-bright: rgba(0, 200, 255, 0.18);
-  --color-neon: #00d4ff;
-  --color-neon-dim: rgba(0, 212, 255, 0.12);
-  --color-bull: #00e676;
-  --color-bull-dim: rgba(0, 230, 118, 0.1);
-  --color-bear: #ff3d71;
-  --color-bear-dim: rgba(255, 61, 113, 0.1);
-  --color-warn: #ffab00;
-  --color-warn-dim: rgba(255, 171, 0, 0.1);
-  --color-purple: #b388ff;
-  --color-purple-dim: rgba(179, 136, 255, 0.1);
-  --color-text: #d6e0ee;
-  --color-text-dim: #5a6e87;
-  --color-text-muted: #384860;
-  --font-display: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --color-bg: #0a0a0a;
+  --color-panel: #0f0f0f;
+  --color-border: #1f1f1f;
+  --color-amber: #FFB300;
+  --color-amber-dim: #7A5600;
+  --color-white: #E8E8E8;
+  --color-green: #00C853;
+  --color-red: #FF3D00;
+  --color-blue: #2196F3;
+  --color-gray: #444444;
+  --color-dim: #222222;
+  --color-hover: #161616;
+  --color-atm-bg: #1a1400;
+  --color-mp-bg: #001020;
+  --font-mono: "IBM Plex Mono", monospace;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-html { font-size: 14px; }
+html { font-size: 13px; }
 
 body {
   background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-display);
+  color: var(--color-white);
+  font-family: var(--font-mono);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle grid background */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(rgba(0,200,255,0.012) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,200,255,0.012) 1px, transparent 1px);
-  background-size: 60px 60px;
-  z-index: 0;
-}
+/* Zero decoration */
+* { border-radius: 0 !important; }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--color-bg); }
-::-webkit-scrollbar-thumb { background: var(--color-text-muted); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-neon); }
+::-webkit-scrollbar-thumb { background: var(--color-gray); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-amber); }
 
-/* Glow animations */
-@keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 8px rgba(0,212,255,0.15); }
-  50% { box-shadow: 0 0 20px rgba(0,212,255,0.3); }
+/* Blinking live dot */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
 }
-@keyframes bullGlow {
-  0%, 100% { box-shadow: 0 0 8px rgba(0,230,118,0.15); }
-  50% { box-shadow: 0 0 20px rgba(0,230,118,0.3); }
+.live-dot {
+  width: 6px; height: 6px;
+  background: var(--color-green);
+  display: inline-block;
+  animation: blink 1.5s infinite;
 }
-@keyframes bearGlow {
-  0%, 100% { box-shadow: 0 0 8px rgba(255,61,113,0.15); }
-  50% { box-shadow: 0 0 20px rgba(255,61,113,0.3); }
+
+/* Table row hover */
+.data-row:hover { background: var(--color-hover); }
+
+/* Panel title style */
+.panel-title {
+  text-transform: uppercase;
+  color: var(--color-amber);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 6px;
+  margin-bottom: 10px;
 }
+
+/* Tier badges */
+.tier-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #000;
+  letter-spacing: 1px;
+}
+.tier-1 { background: var(--color-red); }
+.tier-2 { background: var(--color-amber); }
+.tier-3 { background: var(--color-green); }
+.tier-4 { background: var(--color-blue); }
+
+/* Score dots animation */
+@keyframes fillDot {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 1; transform: scale(1); }
+}
+.score-dot {
+  width: 10px; height: 10px;
+  display: inline-block;
+  margin-right: 3px;
+}
+.score-dot.filled { background: var(--color-amber); animation: fillDot 0.3s ease forwards; }
+.score-dot.empty { background: var(--color-gray); }
+
+/* OI bar inline */
+.oi-bar { height: 14px; display: inline-block; min-width: 2px; }
+.oi-bar.call { background: var(--color-red); }
+.oi-bar.put { background: var(--color-green); }
