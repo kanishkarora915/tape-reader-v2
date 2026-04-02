@@ -171,8 +171,16 @@ class MarketEngine:
                         self._last_candle_time = now
 
     def _on_close(self, ws, code, reason) -> None:
-        """Handle ticker disconnect."""
+        """Handle ticker disconnect — attempt reconnect."""
         logger.warning(f"[TICKER] Closed: {code} — {reason}")
+        if self._running:
+            logger.info("[TICKER] Attempting reconnect in 5s...")
+            import time as _time
+            _time.sleep(5)
+            try:
+                self._start_ticker(self._subscribe_tokens)
+            except Exception as e:
+                logger.error(f"[TICKER] Reconnect failed: {e}")
 
     async def _engine_loop(self) -> None:
         """Run all engines every 5 seconds and broadcast results."""
@@ -427,7 +435,13 @@ class MarketEngine:
         if spot == 0:
             # Use quote as fallback
             try:
-                q = kite.quote([f"NSE:{index_name} 50"])
+                quote_keys = {
+                    "NIFTY": "NSE:NIFTY 50",
+                    "BANKNIFTY": "NSE:NIFTY BANK",
+                    "SENSEX": "BSE:SENSEX",
+                }
+                qk = quote_keys.get(index_name, f"NSE:{index_name}")
+                q = kite.quote([qk])
                 spot = list(q.values())[0]["last_price"]
             except Exception:
                 spot = 0
