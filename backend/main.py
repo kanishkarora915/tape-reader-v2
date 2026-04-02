@@ -151,6 +151,12 @@ async def callback(
 @app.get("/api/dev-login")
 async def dev_login(response: Response):
     """Dev-only: bypass OAuth for dashboard preview."""
+    global market_engine
+    # Stop stale engine so demo broadcaster takes over
+    if market_engine:
+        market_engine.stop()
+        market_engine = None
+        logger.info("[DEV] Stopped stale market engine for demo mode")
     sid = auth_manager.create_dev_session()
     response = RedirectResponse("/")
     response.set_cookie("buyby_session", sid, httponly=True, samesite="lax", secure=IS_PROD, max_age=86400)
