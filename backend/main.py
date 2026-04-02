@@ -136,6 +136,7 @@ async def callback(
             kite=sess["kite"],
             ws_manager=ws_manager,
             engine_registry=engine_registry,
+            trade_tracker=trade_tracker,
         )
         await market_engine.start()
 

@@ -27,11 +27,12 @@ class MarketEngine:
     - Broadcasts results to WebSocket clients
     """
 
-    def __init__(self, kite: KiteConnect, ws_manager: WSManager, engine_registry: dict):
+    def __init__(self, kite: KiteConnect, ws_manager: WSManager, engine_registry: dict, trade_tracker=None):
         self.kite = kite
         self.ws_manager = ws_manager
         self.engine_registry = engine_registry  # dict of engine_id -> engine_class
         self.combiner = SignalCombiner()
+        self.trade_tracker = trade_tracker
 
         # State
         self.prices: dict = {}          # token -> last tick data
@@ -351,6 +352,22 @@ class MarketEngine:
 
                 if signal and signal.get("type") not in ("SKIP", "WAIT"):
                     await self.ws_manager.broadcast("signal", signal)
+
+                    # Record trade if actionable signal
+                    if self.trade_tracker and signal.get("type") in (
+                        "BUY_CALL", "BUY_PUT", "STRONG_BUY_CALL", "STRONG_BUY_PUT",
+                        "BIG_MOVE_ALERT", "VOLATILE_BUY"
+                    ):
+                        try:
+                            self.trade_tracker.record_trade(signal, self.engine_results)
+                            logger.info(f"[TRADE] Recorded: {signal['type']} {signal.get('instrument','')}")
+                        except Exception as te:
+                            logger.error(f"[TRADE] Record failed: {te}")
+
+                # Also check active trades for SL/target hits
+                if self.trade_tracker:
+                    tick_data = {"nifty_spot": context.get("nifty_spot", 0)}
+                    self.trade_tracker.check_active_trades(tick_data)
 
                 # Broadcast option chain as array for frontend
                 chain_array = sorted(flat_chain.values(), key=lambda r: r.get("strike", 0))

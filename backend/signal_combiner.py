@@ -44,8 +44,8 @@ class SignalCombiner:
             reasoning.append("TIME GATE: Market opening volatility (9:15-9:25). No entry.")
             return self._build_signal("WAIT", reasoning=reasoning, engine_verdicts=engine_verdicts)
 
-        if ist_hour >= 15:
-            reasoning.append("TIME GATE: After 3:00 PM IST. No new entries.")
+        if ist_hour >= 15 and ist_minute >= 25:
+            reasoning.append("TIME GATE: After 3:25 PM IST. No new entries.")
             return self._build_signal("WAIT", reasoning=reasoning, engine_verdicts=engine_verdicts)
 
         # ── T1: Gate Check (e01-e04 must all PASS) ──
