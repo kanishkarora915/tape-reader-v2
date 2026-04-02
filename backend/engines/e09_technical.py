@@ -93,8 +93,55 @@ class TechnicalEngine(BaseEngine):
         lows_list = candles.get("low", [])
 
         if len(closes_list) < 50:
-            return EngineResult(verdict="NEUTRAL", confidence=10,
-                                data={"error": f"Need 50 candles, have {len(closes_list)}"})
+            # Fallback: simplified analysis from tick data
+            change_pct = ctx.get("nifty_change_pct", 0)
+            vix = ctx.get("vix", 0)
+            if isinstance(vix, dict):
+                vix = vix.get("current", 0)
+            spot = ctx.get("prices", {}).get("spot", 0) or ctx.get("nifty_spot", 0)
+
+            votes = {}
+            if change_pct > 0.3:
+                votes["ema"] = "BULLISH"
+                votes["rsi"] = "BULLISH"
+                votes["macd"] = "NEUTRAL"
+                votes["supertrend"] = "BULLISH" if vix <= 20 else "NEUTRAL"
+            elif change_pct < -0.3:
+                votes["ema"] = "BEARISH"
+                votes["rsi"] = "BEARISH"
+                votes["macd"] = "NEUTRAL"
+                votes["supertrend"] = "BEARISH" if vix <= 20 else "BEARISH"
+            else:
+                votes["ema"] = "NEUTRAL"
+                votes["rsi"] = "NEUTRAL"
+                votes["macd"] = "NEUTRAL"
+                votes["supertrend"] = "BEARISH" if vix > 20 else "NEUTRAL"
+
+            bull_votes = sum(1 for v in votes.values() if v == "BULLISH")
+            bear_votes = sum(1 for v in votes.values() if v == "BEARISH")
+
+            if bull_votes >= 2:
+                direction = "BULLISH"
+            elif bear_votes >= 2:
+                direction = "BEARISH"
+            else:
+                direction = "NEUTRAL"
+
+            return EngineResult(
+                verdict="PARTIAL",
+                direction=direction,
+                confidence=30,
+                data={
+                    "ema_20": 0, "ema_50": 0,
+                    "rsi": 50, "macd": 0, "macd_signal": 0, "macd_histogram": 0,
+                    "supertrend": 0, "supertrend_dir": 0,
+                    "votes": votes,
+                    "bull_votes": bull_votes,
+                    "bear_votes": bear_votes,
+                    "direction": direction,
+                    "note": "Simplified from tick data, no candles yet",
+                }
+            )
 
         closes = np.array(closes_list, dtype=float)
         highs = np.array(highs_list, dtype=float)

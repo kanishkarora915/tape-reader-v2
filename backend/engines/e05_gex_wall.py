@@ -151,5 +151,6 @@ class GEXWallEngine(BaseEngine):
                 "put_wall_gex": round(max_put_gex, 2),
                 "total_gex": round(total_gex, 2),
                 "flip_detected": flip_detected,
+                "spot": spot,
             }
         )

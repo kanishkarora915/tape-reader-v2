@@ -57,10 +57,24 @@ class OIPulseEngine(BaseEngine):
             self._oi_history_ce.pop(0)
             self._oi_history_pe.pop(0)
 
-        # Need at least 2 snapshots for delta
+        # Need at least 2 snapshots for proper delta analysis
         if len(self._oi_history_ce) < 2:
-            return EngineResult(verdict="NEUTRAL", confidence=10,
-                                data={"note": "Building OI history"})
+            # First call — use price direction + OI ratio as preliminary signal
+            total_ce = sum(ce_oi_now.values()) or 1
+            total_pe = sum(pe_oi_now.values()) or 1
+            pcr_raw = total_pe / total_ce
+            price_chg = ctx.get("nifty_change_pct", 0)
+            if price_chg < -0.5 and pcr_raw > 1.1:
+                prelim_dir = "BEARISH"
+            elif price_chg > 0.5 and pcr_raw < 0.9:
+                prelim_dir = "BULLISH"
+            else:
+                prelim_dir = "NEUTRAL"
+            return EngineResult(
+                verdict="PARTIAL", direction=prelim_dir, confidence=25,
+                data={"writer_signal": "BUILDING_HISTORY", "total_oi_trend": "UNKNOWN",
+                      "oi_change_ce": 0, "oi_change_pe": 0, "note": "Preliminary — building OI history"}
+            )
 
         # Compute OI change over available window (oldest vs newest)
         old_ce = self._oi_history_ce[0]
@@ -85,7 +99,7 @@ class OIPulseEngine(BaseEngine):
         confidence = 30
 
         # Call OI falling + price rising = BULLISH (call writers covering)
-        price_change = ctx.get("prices", {}).get("change_pct", 0)
+        price_change = ctx.get("prices", {}).get("change_pct", 0) or ctx.get("nifty_change_pct", 0)
 
         if ce_pct < -3 and price_change > 0.1:
             writer_signal = "CALL_WRITERS_COVERING"
@@ -100,12 +114,12 @@ class OIPulseEngine(BaseEngine):
             verdict = "PASS"
             confidence = min(70 + abs(int(pe_pct)), 95)
 
-        # Both sides OI surging = straddle building = BLOCK
+        # Both sides OI surging = straddle building = informational, not a block
         elif ce_pct > 5 and pe_pct > 5:
             writer_signal = "STRADDLE_BUILD"
-            verdict = "FAIL"
+            verdict = "PASS"
             direction = "NEUTRAL"
-            confidence = 60
+            confidence = 40
 
         # Both sides OI flat = weak conviction
         elif abs(ce_pct) < 1 and abs(pe_pct) < 1:

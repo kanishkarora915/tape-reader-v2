@@ -179,10 +179,23 @@ class SignalCombiner:
 
     def _get_entry_data(self, engine_results: dict, direction: str) -> dict:
         """Extract entry price data from ATM option in chain."""
-        # Try to get ATM data from GEX engine (e05) which has chain info
         e05 = engine_results.get("e05", {})
         data = e05.get("data", {})
+
+        # Get spot from multiple sources
         spot = data.get("spot", 0)
+        if not spot:
+            # Try VWAP engine
+            e08 = engine_results.get("e08", {}).get("data", {})
+            spot = e08.get("spot", 0) or e08.get("d_vwap", 0)
+        if not spot:
+            # Try E03 structure
+            e03 = engine_results.get("e03", {}).get("data", {})
+            support = e03.get("support", 0)
+            resistance = e03.get("resistance", 0)
+            if support and resistance:
+                spot = (support + resistance) / 2
+
         call_wall = data.get("call_wall", 0)
         put_wall = data.get("put_wall", 0)
 

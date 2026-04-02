@@ -22,8 +22,33 @@ class ConfluenceScorerEngine(BaseEngine):
     def compute(self, ctx: dict) -> EngineResult:
         prev = ctx.get("previous_results", {})
         if not prev:
-            return EngineResult(verdict="NEUTRAL", confidence=10,
-                                data={"error": "No previous engine results"})
+            # First loop: no previous results yet, allow pass so T1 gate doesn't block
+            # Use basic context to provide a minimal confluence score
+            change_pct = ctx.get("nifty_change_pct", 0)
+            if change_pct > 0.3:
+                direction = "BULLISH"
+            elif change_pct < -0.3:
+                direction = "BEARISH"
+            else:
+                direction = "NEUTRAL"
+            return EngineResult(
+                verdict="PARTIAL",
+                direction=direction,
+                confidence=25,
+                data={
+                    "total_score": 0,
+                    "max_score": 9,
+                    "t2_bull_votes": 0,
+                    "t2_bear_votes": 0,
+                    "t2_neutral_votes": 0,
+                    "direction": direction,
+                    "gate_passed": False,
+                    "t1_gate_open": True,
+                    "t1_details": {},
+                    "t2_details": {},
+                    "note": "First cycle, no previous results yet",
+                }
+            )
 
         # --- T1 Gate Check ---
         t1_passed = 0

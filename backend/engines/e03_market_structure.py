@@ -176,8 +176,38 @@ class MarketStructureEngine(BaseEngine):
         closes_list = candles.get("close", [])
 
         if len(closes_list) < 10:
-            return EngineResult(verdict="NEUTRAL", confidence=10,
-                                data={"error": "Need at least 10 candles"})
+            # Fallback: derive basic structure from tick data
+            change_pct = ctx.get("nifty_change_pct", 0)
+            spot = ctx.get("prices", {}).get("spot", 0) or ctx.get("nifty_spot", 0)
+            nifty_high = ctx.get("nifty_high", 0)
+            nifty_low = ctx.get("nifty_low", 0)
+
+            if change_pct > 0.5:
+                direction = "BULLISH"
+                regime = "UPTREND"
+            elif change_pct < -0.5:
+                direction = "BEARISH"
+                regime = "DOWNTREND"
+            else:
+                direction = "NEUTRAL"
+                regime = "RANGE"
+
+            return EngineResult(
+                verdict="PASS",
+                direction=direction,
+                confidence=40,
+                data={
+                    "regime": regime,
+                    "support": round(nifty_low, 2) if nifty_low else 0,
+                    "resistance": round(nifty_high, 2) if nifty_high else 0,
+                    "order_blocks": [],
+                    "recent_events": [],
+                    "swing_highs": [],
+                    "swing_lows": [],
+                    "note": "Tick-based estimate, no candles yet",
+                    "change_pct": round(change_pct, 2),
+                }
+            )
 
         highs = np.array(highs_list, dtype=float)
         lows = np.array(lows_list, dtype=float)

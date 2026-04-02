@@ -55,8 +55,34 @@ class VWAPConfluenceEngine(BaseEngine):
         closes = candles.get("close", [])
         volumes = candles.get("volume", [])
 
-        if not closes or spot == 0:
+        if spot == 0:
+            spot = ctx.get("nifty_spot", 0) or ctx.get("prices", {}).get("spot", 0)
+        if spot == 0:
             return EngineResult(verdict="NEUTRAL", data={"error": "No price data"})
+
+        if not closes:
+            # Fallback: estimate VWAP from spot tick data
+            nifty_high = ctx.get("nifty_high", spot)
+            nifty_low = ctx.get("nifty_low", spot)
+            est_vwap = round((nifty_high + nifty_low + spot) / 3, 2)
+            direction = "BULLISH" if spot > est_vwap else "BEARISH"
+            return EngineResult(
+                verdict="PARTIAL",
+                direction=direction,
+                confidence=35,
+                data={
+                    "d_vwap": est_vwap,
+                    "w_vwap": est_vwap,
+                    "sd1_upper": round(est_vwap + (nifty_high - nifty_low) * 0.5, 2),
+                    "sd1_lower": round(est_vwap - (nifty_high - nifty_low) * 0.5, 2),
+                    "sd2_upper": round(est_vwap + (nifty_high - nifty_low), 2),
+                    "sd2_lower": round(est_vwap - (nifty_high - nifty_low), 2),
+                    "std_dev": 0,
+                    "position": "ESTIMATED",
+                    "spot": spot,
+                    "note": "Estimated from tick data, no candles yet",
+                }
+            )
 
         # --- D-VWAP from intraday candles ---
         if len(closes) > 0 and len(volumes) > 0:

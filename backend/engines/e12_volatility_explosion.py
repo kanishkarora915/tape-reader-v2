@@ -140,6 +140,15 @@ class VolatilityExplosionEngine(BaseEngine):
         highs_list = candles.get("high", [])
         lows_list = candles.get("low", [])
 
+        # Get VIX value for fallback detection
+        vix_raw = ctx.get("vix", 0)
+        vix_data = ctx.get("vix_data", {})
+        current_vix = vix_raw if isinstance(vix_raw, (int, float)) else 0
+        if not current_vix and isinstance(vix_data, dict):
+            current_vix = vix_data.get("current", 0)
+
+        has_candles = len(closes_list) >= 25
+
         # Sub-detector 1: VIX spike
         vix_result = self._detect_vix_spike(ctx)
 
@@ -148,7 +157,9 @@ class VolatilityExplosionEngine(BaseEngine):
             closes = np.array(closes_list, dtype=float)
             bb_result = self._detect_bb_squeeze(closes)
         else:
-            bb_result = {"active": False, "note": "Need 40+ candles"}
+            # VIX-based BB squeeze fallback
+            bb_expanding = current_vix > 20
+            bb_result = {"active": bb_expanding, "bandwidth": 0, "min_bandwidth": 0}
 
         # Sub-detector 3: IV expansion
         iv_result = self._detect_iv_expansion(ctx)
@@ -160,7 +171,7 @@ class VolatilityExplosionEngine(BaseEngine):
             closes = np.array(closes_list, dtype=float)
             atr_result = self._detect_atr_compression(highs, lows, closes)
         else:
-            atr_result = {"active": False, "note": "Need 25+ candles"}
+            atr_result = {"active": False, "atr_ratio": 0.0, "current_atr": 0, "avg_atr": 0}
 
         # Count active sub-signals
         sub_signals = {
@@ -171,23 +182,32 @@ class VolatilityExplosionEngine(BaseEngine):
         }
         active_count = sum(1 for s in sub_signals.values() if s.get("active", False))
 
+        # VIX > 25 = high vol environment, treat as amplifier pass
+        if current_vix > 25 and active_count < 2:
+            active_count = max(active_count, 2)
+
         # Fires if 2+ sub-detectors active
         volatile_mode = active_count >= 2
         verdict = "PASS" if volatile_mode else ("PARTIAL" if active_count == 1 else "NEUTRAL")
         direction = "NEUTRAL"  # Amplifier, not directional
         confidence = 20 + active_count * 20
 
+        # Flatten data — only primitives, no nested dicts
         return EngineResult(
             verdict=verdict,
             direction=direction,
             confidence=min(confidence, 90),
             data={
-                "vix_spike": vix_result,
-                "bb_squeeze": bb_result,
-                "iv_expanding": iv_result,
-                "atr_ratio": atr_result,
+                "vix": current_vix,
+                "vix_spike": vix_result.get("active", False),
+                "vix_change_pct": vix_result.get("change_pct", 0),
+                "bb_squeeze": "Expanding" if bb_result.get("active", False) else "Normal",
+                "bb_bandwidth": bb_result.get("bandwidth", 0),
+                "iv_expanding": iv_result.get("active", False),
+                "iv_atm": iv_result.get("atm_iv", 0),
+                "atr_compression": atr_result.get("active", False),
+                "atr_ratio": atr_result.get("atr_ratio", 0.0),
                 "volatile_mode": volatile_mode,
                 "active_sub_signals": active_count,
-                "sub_signals": {k: v.get("active", False) for k, v in sub_signals.items()},
             }
         )
