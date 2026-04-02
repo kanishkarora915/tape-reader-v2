@@ -91,7 +91,7 @@ async def login():
 
     session_id, login_url = auth_manager.create_session(api_key, api_secret)
     response = JSONResponse({"login_url": login_url, "session_id": session_id})
-    response.set_cookie("buyby_session", session_id, httponly=True, samesite="lax")
+    response.set_cookie("buyby_session", session_id, httponly=True, samesite="lax", secure=IS_PROD, max_age=86400)
     return response
 
 
@@ -106,6 +106,11 @@ async def callback(
     global market_engine
     fe_url = get_frontend_url(request)
     sid = session_id or buyby_session
+
+    # Fallback: if no session_id from cookie/param, use the most recent session
+    if not sid and auth_manager.sessions:
+        sid = list(auth_manager.sessions.keys())[-1]
+        logger.info(f"[AUTH] Using last session: {sid[:8]}...")
 
     if not sid:
         return RedirectResponse(f"{fe_url}/?auth=failed&reason=no_session")
@@ -129,7 +134,7 @@ async def callback(
         await market_engine.start()
 
         response = RedirectResponse(f"{fe_url}/?auth=success")
-        response.set_cookie("buyby_session", sid, httponly=True, samesite="lax")
+        response.set_cookie("buyby_session", sid, httponly=True, samesite="lax", secure=IS_PROD, max_age=86400)
         return response
 
     except Exception as e:
@@ -142,7 +147,7 @@ async def dev_login(response: Response):
     """Dev-only: bypass OAuth for dashboard preview."""
     sid = auth_manager.create_dev_session()
     response = RedirectResponse("/")
-    response.set_cookie("buyby_session", sid, httponly=True, max_age=86400)
+    response.set_cookie("buyby_session", sid, httponly=True, samesite="lax", secure=IS_PROD, max_age=86400)
     return response
 
 
@@ -185,7 +190,19 @@ async def get_engines():
     """Return all 24 engine states."""
     if not market_engine:
         return JSONResponse({"error": "Engine not running"}, status_code=503)
-    return {"engines": market_engine.engine_results}
+    try:
+        # Ensure all values are JSON-serializable
+        import json
+        safe_results = {}
+        for eid, result in market_engine.engine_results.items():
+            if isinstance(result, dict):
+                safe_results[eid] = result
+            else:
+                safe_results[eid] = {"name": str(eid), "tier": 0, "verdict": "NEUTRAL", "direction": "NEUTRAL", "confidence": 0, "data": {}}
+        return {"engines": safe_results}
+    except Exception as e:
+        logger.error(f"[API] /api/engines error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.get("/api/signals")
