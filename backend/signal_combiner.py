@@ -135,27 +135,46 @@ class SignalCombiner:
             signal_type = f"BUY_{'CALL' if t2_direction == 'BULLISH' else 'PUT'}"
 
         # ── Entry / SL / Targets ──
-        entry_data = self._get_entry_data(engine_results, t2_direction)
-        entry_low = entry_data.get("entry_low", 0)
-        entry_high = entry_data.get("entry_high", 0)
-        entry_mid = (entry_low + entry_high) / 2 if entry_low and entry_high else 0
+        # Priority: Use E19 UOA trade if available (has exact LTP/strike)
+        e19_trade = engine_results.get("e19", {}).get("data", {}).get("trade")
+        if e19_trade and isinstance(e19_trade, dict) and e19_trade.get("ltp"):
+            instrument = e19_trade.get("instrument", "NIFTY")
+            strike = e19_trade.get("strike", 0)
+            entry_mid = e19_trade.get("entry", 0)
+            sl = e19_trade.get("sl", 0)
+            t1_target = e19_trade.get("target1", 0)
+            t2_target = e19_trade.get("target2", 0)
+            t3_target = round(entry_mid * 2.0, 1) if entry_mid else 0
+            rr = e19_trade.get("rr", "—")
+            entry_arr = [entry_mid, entry_mid] if entry_mid else []
+            reasoning.append(f"UOA TRADE: {e19_trade.get('reason', '')}")
+            # Override signal type if UOA detected
+            if e19_trade.get("confidence") == "HIGH":
+                signal_type = "BIG_MOVE_ALERT"
+        else:
+            entry_data = self._get_entry_data(engine_results, t2_direction)
+            instrument = entry_data.get("instrument", "NIFTY")
+            strike = entry_data.get("strike", 0)
+            entry_low = entry_data.get("entry_low", 0)
+            entry_high = entry_data.get("entry_high", 0)
+            entry_mid = (entry_low + entry_high) / 2 if entry_low and entry_high else 0
+            entry_arr = [entry_low, entry_high] if entry_low else []
 
-        sl_pct = 0.15 if mode == "VOLATILE" else 0.20
-        sl = round(entry_mid * (1 - sl_pct), 1) if entry_mid else 0
+            sl_pct = 0.15 if mode == "VOLATILE" else 0.20
+            sl = round(entry_mid * (1 - sl_pct), 1) if entry_mid else 0
+            t1_target = round(entry_mid * 1.30, 1) if entry_mid else 0
+            t2_target = round(entry_mid * 1.50, 1) if entry_mid else 0
+            t3_target = round(entry_mid * 2.00, 1) if entry_mid else 0
 
-        t1_target = round(entry_mid * 1.30, 1) if entry_mid else 0
-        t2_target = round(entry_mid * 1.50, 1) if entry_mid else 0
-        t3_target = round(entry_mid * 2.00, 1) if entry_mid else 0
-
-        risk = entry_mid - sl if entry_mid and sl else 1
-        reward = t1_target - entry_mid if t1_target and entry_mid else 0
-        rr = f"1:{round(reward / risk, 1)}" if risk > 0 else "—"
+            risk = entry_mid - sl if entry_mid and sl else 1
+            reward = t1_target - entry_mid if t1_target and entry_mid else 0
+            rr = f"1:{round(reward / risk, 1)}" if risk > 0 else "—"
 
         return self._build_signal(
             signal_type,
-            instrument=entry_data.get("instrument", "NIFTY"),
-            strike=entry_data.get("strike", 0),
-            entry=[entry_low, entry_high] if entry_low else [],
+            instrument=instrument,
+            strike=strike,
+            entry=entry_arr,
             sl=sl,
             t1=t1_target,
             t2=t2_target,
