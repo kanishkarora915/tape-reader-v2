@@ -106,13 +106,8 @@ class AIReasoningEngine(BaseEngine):
         except Exception as ex:
             import logging
             logging.getLogger("buyby.e24").error(f"[E24] Claude API call failed: {ex}")
-            return {
-                "rationale": f"AI call failed: {str(ex)[:200]}",
-                "risk_factors": ["API call error", "Use engine verdicts directly"],
-                "confidence": 0,
-                "direction": "NEUTRAL",
-                "trade_recommendation": "WAIT - AI analysis offline",
-            }
+            # Fall back to rule-based synthesis instead of showing error
+            return None  # Will trigger fallback below
 
         # Parse JSON from response
         try:
@@ -217,7 +212,10 @@ class AIReasoningEngine(BaseEngine):
             prompt = self._build_prompt(engine_states, ctx)
             ai_result = self._call_claude(prompt)
             self._last_call_time = time.time()
-            self._last_ai_result = ai_result
+            if ai_result:  # API succeeded
+                self._last_ai_result = ai_result
+            else:  # API failed — use fallback
+                ai_result = self._fallback_synthesis(engine_states)
         elif self._last_ai_result:
             ai_result = self._last_ai_result
         else:
