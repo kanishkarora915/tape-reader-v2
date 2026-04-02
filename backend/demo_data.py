@@ -462,14 +462,24 @@ class LastSessionFetcher:
 fetcher = LastSessionFetcher()
 
 
-async def run_demo_broadcast(ws_manager, is_live_fn=None):
-    """Background task: broadcast last-session REAL data every 5 seconds."""
+async def run_demo_broadcast(ws_manager, is_live_fn=None, engine_has_data_fn=None):
+    """Background task: broadcast data every 5 seconds when live engine isn't producing."""
+    _no_data_count = 0
     while True:
         try:
-            # Skip if live market engine is running
+            # Skip if live market engine is running AND actually producing data
             if is_live_fn and is_live_fn():
-                await asyncio.sleep(5)
-                continue
+                # But if engine is running with no data for 30s, take over
+                if engine_has_data_fn and engine_has_data_fn():
+                    _no_data_count = 0
+                    await asyncio.sleep(5)
+                    continue
+                else:
+                    _no_data_count += 1
+                    if _no_data_count < 6:  # Wait 30s before taking over
+                        await asyncio.sleep(5)
+                        continue
+                    # Engine running but no data — broadcast anyway
 
             if ws_manager.client_count > 0:
                 tick, engines, chain_info = fetcher.fetch_all()

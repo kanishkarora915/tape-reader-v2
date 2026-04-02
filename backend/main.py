@@ -45,7 +45,13 @@ async def lifespan(app: FastAPI):
     logger.info("[BUYBY] Backend started")
     # Start demo broadcaster (sends data to WS clients when no live engine)
     from demo_data import run_demo_broadcast
-    asyncio.create_task(run_demo_broadcast(ws_manager, is_live_fn=lambda: market_engine is not None))
+    asyncio.create_task(run_demo_broadcast(
+        ws_manager,
+        is_live_fn=lambda: market_engine is not None,
+        engine_has_data_fn=lambda: bool(market_engine and market_engine.engine_results and any(
+            r.get("verdict") != "NEUTRAL" for r in market_engine.engine_results.values() if isinstance(r, dict)
+        )),
+    ))
     logger.info("[BUYBY] Demo data broadcaster started")
     yield
     if market_engine:
