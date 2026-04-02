@@ -135,10 +135,52 @@ class MicrostructureEngine(BaseEngine):
             "levels": iceberg_levels[:5],
         }
 
+    def _build_depth_from_chain(self, ctx: dict) -> dict:
+        """Build synthetic depth from option chain bid/ask data when real depth unavailable."""
+        chains = ctx.get("chains", {})
+        atm = ctx.get("atm_strike", 0)
+        if not chains or not atm:
+            return {}
+
+        # Gather CE and PE bid/ask around ATM to create synthetic depth
+        bids = []
+        asks = []
+        for strike, data in chains.items():
+            if not isinstance(data, dict):
+                continue
+            # Use strikes near ATM
+            if abs(strike - atm) > 300:
+                continue
+            ce_ltp = data.get("ce_ltp", 0)
+            pe_ltp = data.get("pe_ltp", 0)
+            ce_oi = data.get("ce_oi", 0)
+            pe_oi = data.get("pe_oi", 0)
+
+            if pe_oi > 0:
+                bids.append({"price": strike, "qty": pe_oi})
+            if ce_oi > 0:
+                asks.append({"price": strike, "qty": ce_oi})
+
+        if bids or asks:
+            return {"bids": sorted(bids, key=lambda x: -x["price"])[:5],
+                    "asks": sorted(asks, key=lambda x: x["price"])[:5]}
+        return {}
+
     def compute(self, ctx: dict) -> EngineResult:
         depth = ctx.get("depth", {})
+
+        # If depth is empty, try to build synthetic depth from chain OI
+        if not depth or (not depth.get("bids") and not depth.get("asks")):
+            depth = self._build_depth_from_chain(ctx)
+
         candles = ctx.get("candles", {})
-        closes = candles.get("close", [])
+        if isinstance(candles, list):
+            # candles is a list of OHLCV dicts, extract closes
+            closes = [c.get("close", 0) for c in candles if isinstance(c, dict)]
+        elif isinstance(candles, dict):
+            closes = candles.get("close", [])
+        else:
+            closes = []
 
         price_change = 0
         if len(closes) >= 2:

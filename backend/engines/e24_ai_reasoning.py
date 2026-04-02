@@ -91,13 +91,24 @@ class AIReasoningEngine(BaseEngine):
     def _call_claude(self, prompt: str) -> dict:
         """Call Claude API. Tries to import from services/claude_api.py."""
         try:
-            from ..services.claude_api import call_claude
+            from services.claude_api import call_claude
             response_text = call_claude(prompt)
-        except (ImportError, Exception):
-            # Fallback: return a placeholder when API is unavailable
+        except ImportError as ie:
+            import logging
+            logging.getLogger("buyby.e24").error(f"[E24] Import error: {ie}")
             return {
-                "rationale": "AI service unavailable. Manual analysis required based on engine signals.",
-                "risk_factors": ["API unavailable", "Use engine verdicts directly"],
+                "rationale": "AI service unavailable (import error). Check claude_api.py.",
+                "risk_factors": ["API module import failed"],
+                "confidence": 0,
+                "direction": "NEUTRAL",
+                "trade_recommendation": "WAIT - AI module error",
+            }
+        except Exception as ex:
+            import logging
+            logging.getLogger("buyby.e24").error(f"[E24] Claude API call failed: {ex}")
+            return {
+                "rationale": f"AI call failed: {str(ex)[:200]}",
+                "risk_factors": ["API call error", "Use engine verdicts directly"],
                 "confidence": 0,
                 "direction": "NEUTRAL",
                 "trade_recommendation": "WAIT - AI analysis offline",
@@ -166,15 +177,17 @@ class AIReasoningEngine(BaseEngine):
 
         avg_conf = int(sum(confidences) / len(confidences)) if confidences else 30
 
+        risk_factors = [
+            f"{fail_count} engines failing" if fail_count > 3 else "Few failures",
+            "Mixed signals" if direction == "NEUTRAL" else f"Leaning {direction}",
+        ]
         return {
             "rationale": (
                 f"Rule-based: {pass_count} engines PASS, {fail_count} FAIL. "
                 f"Directional scores: BULL={bull_score:.1f}, BEAR={bear_score:.1f}."
             ),
-            "risk_factors": [
-                f"{fail_count} engines failing" if fail_count > 3 else "Few failures",
-                "Mixed signals" if direction == "NEUTRAL" else f"Leaning {direction}",
-            ],
+            "risk_factors": risk_factors,
+            "riskFactors": risk_factors,
             "confidence": avg_conf,
             "direction": direction,
             "trade_recommendation": (
@@ -223,7 +236,9 @@ class AIReasoningEngine(BaseEngine):
             data={
                 "rationale": ai_result.get("rationale", ""),
                 "risk_factors": ai_result.get("risk_factors", []),
+                "riskFactors": ai_result.get("risk_factors", []),  # camelCase for frontend
                 "confidence": ai_confidence,
+                "confidenceAssessment": f"{ai_confidence}% — {'High conviction' if ai_confidence > 70 else 'Moderate' if ai_confidence > 45 else 'Low conviction'}",
                 "trade_recommendation": ai_result.get("trade_recommendation", "WAIT"),
                 "api_called": self._last_call_time == time.time(),
                 "signal_triggered": signal_fired,

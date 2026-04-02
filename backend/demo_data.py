@@ -418,6 +418,12 @@ class LastSessionFetcher:
                         f"VIX at {vix:.1f} — {'calm market, expect range-bound' if vix < 14 else 'moderate volatility' if vix < 18 else 'high volatility, expect big swings'}",
                         f"PCR at {pcr} — {'extreme, reversal risk' if pcr > 1.4 or pcr < 0.5 else 'within tradeable range'}",
                     ],
+                    "riskFactors": [
+                        f"IVR at {ivr} — {'premiums affordable for buying' if ivr < 50 else 'elevated premiums, risk of IV crush'}",
+                        f"VIX at {vix:.1f} — {'calm market, expect range-bound' if vix < 14 else 'moderate volatility' if vix < 18 else 'high volatility, expect big swings'}",
+                        f"PCR at {pcr} — {'extreme, reversal risk' if pcr > 1.4 or pcr < 0.5 else 'within tradeable range'}",
+                    ],
+                    "confidenceAssessment": f"72% — {'High conviction' if 72 > 70 else 'Moderate'}",
                     "confidence": 72,
                     "trade_recommendation": f"{'BUY NIFTY ' + str(atm) + (' CE' if bias == 'BULLISH' else ' PE')} | SL: 15% premium | T1: {call_wall if bias == 'BULLISH' else put_wall}",
                 }

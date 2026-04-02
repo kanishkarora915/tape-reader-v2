@@ -99,6 +99,42 @@ class CrossAssetEngine(BaseEngine):
 
     def compute(self, ctx: dict) -> EngineResult:
         cross_assets = ctx.get("cross_assets", {})
+
+        # Fallback: when no cross-asset data, derive from VIX and spot movement
+        if not cross_assets or all(not cross_assets.get(k) for k in ("usdinr", "crude", "gold")):
+            vix = ctx.get("vix", 0)
+            prices = ctx.get("prices", {})
+            change_pct = prices.get("change_pct", 0) if isinstance(prices, dict) else 0
+
+            # VIX spike = risk-off = bearish, VIX low = risk-on = neutral/bullish
+            direction = "NEUTRAL"
+            confidence = 20
+            verdict = "NEUTRAL"
+
+            if isinstance(vix, (int, float)) and vix > 0:
+                if vix > 20:
+                    direction = "BEARISH"
+                    confidence = 45
+                    verdict = "PARTIAL"
+                elif vix < 12 and isinstance(change_pct, (int, float)) and change_pct > 0.3:
+                    direction = "BULLISH"
+                    confidence = 40
+                    verdict = "PARTIAL"
+
+            return EngineResult(
+                verdict=verdict, direction=direction, confidence=confidence,
+                data={
+                    "usdinr": {"active": False, "direction": "NEUTRAL", "change_pct": 0},
+                    "crude": {"active": False, "direction": "NEUTRAL", "change_pct": 0},
+                    "gold": {"active": False, "direction": "NEUTRAL", "change_pct": 0},
+                    "correlation_signal": False,
+                    "direction": direction,
+                    "active_signals": 0,
+                    "proxy": True,
+                    "proxy_source": f"VIX={vix:.1f}" if isinstance(vix, (int, float)) else "VIX N/A",
+                }
+            )
+
         usdinr_data = cross_assets.get("usdinr", {})
         crude_data = cross_assets.get("crude", {})
         gold_data = cross_assets.get("gold", {})

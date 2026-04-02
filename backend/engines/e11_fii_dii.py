@@ -16,8 +16,33 @@ class FIIDIIEngine(BaseEngine):
         fii_dii = ctx.get("fii_dii", {})
 
         if not fii_dii:
-            return EngineResult(verdict="NEUTRAL", confidence=10,
-                                data={"error": "No FII/DII data available"})
+            # Fallback: use spot price direction as proxy for institutional flow
+            prices = ctx.get("prices", {})
+            change_pct = prices.get("change_pct", 0)
+            spot = prices.get("spot", 0)
+            vix = ctx.get("vix", 0)
+
+            if isinstance(change_pct, (int, float)) and abs(change_pct) > 0.1:
+                direction = "BULLISH" if change_pct > 0 else "BEARISH"
+                # Stronger move = higher confidence proxy
+                conf = min(55, 30 + int(abs(change_pct) * 10))
+                verdict = "PARTIAL"
+            else:
+                direction = "NEUTRAL"
+                conf = 15
+                verdict = "NEUTRAL"
+
+            return EngineResult(
+                verdict=verdict, direction=direction, confidence=conf,
+                data={
+                    "fii_net_fut": 0, "dii_net_fut": 0,
+                    "fii_3day_trend": "PROXY",
+                    "fii_opt_net": 0, "fii_history": [],
+                    "direction": direction,
+                    "proxy": True,
+                    "proxy_source": f"Spot {change_pct:+.2f}%",
+                }
+            )
 
         # Current day data
         fii_net_fut = fii_dii.get("fii_net_fut", 0)  # FII net futures (long - short)

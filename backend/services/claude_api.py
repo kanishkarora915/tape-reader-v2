@@ -5,6 +5,7 @@ Calls Claude for AI-powered trade reasoning and risk assessment.
 
 import json
 import logging
+import os
 
 import anthropic
 
@@ -15,13 +16,37 @@ logger = logging.getLogger("buyby.claude")
 MODEL = "claude-sonnet-4-20250514"
 
 
+def call_claude(prompt: str) -> str:
+    """
+    Synchronous call to Claude API used by E24 AI Reasoning engine.
+    Takes a prompt string, returns the raw response text.
+    Raises on failure so E24 can handle appropriately.
+    """
+    api_key = ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY not configured")
+
+    client = anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model=MODEL,
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}],
+        system=(
+            "You are an expert derivatives trader analyzing the Indian options market. "
+            "Respond ONLY with valid JSON. No markdown, no commentary."
+        ),
+    )
+    return message.content[0].text.strip()
+
+
 async def get_reasoning(engine_states: dict, signal_data: dict) -> dict:
     """
-    Call Claude API with engine states and signal data.
+    Async call to Claude API with engine states and signal data.
     Returns structured reasoning dict with: rationale, risk_factors, confidence.
     Returns empty dict on failure (never raises).
     """
-    if not ANTHROPIC_API_KEY:
+    api_key = ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
         logger.warning("[CLAUDE] API key not configured — skipping AI reasoning")
         return {}
 
@@ -29,7 +54,7 @@ async def get_reasoning(engine_states: dict, signal_data: dict) -> dict:
     prompt = _build_prompt(engine_states, signal_data)
 
     try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        client = anthropic.Anthropic(api_key=api_key)
 
         message = client.messages.create(
             model=MODEL,

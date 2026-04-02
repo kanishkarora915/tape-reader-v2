@@ -107,6 +107,53 @@ class PreMarketEngine(BaseEngine):
         }
 
     def compute(self, ctx: dict) -> EngineResult:
+        premarket = ctx.get("premarket", {})
+        global_cues = ctx.get("global_cues", {})
+
+        # If premarket and global_cues are empty, derive morning bias from VIX + spot
+        has_premarket = bool(premarket) and (premarket.get("gift_nifty", 0) > 0)
+        has_global = isinstance(global_cues, dict) and any(
+            global_cues.get(k, 0) != 0 for k in ("dow_change_pct", "nasdaq_change_pct", "asia_change_pct")
+        )
+
+        if not has_premarket and not has_global:
+            # Fallback: use VIX level + spot change as morning bias proxy
+            vix = ctx.get("vix", 0)
+            prices = ctx.get("prices", {})
+            spot = prices.get("spot", 0) if isinstance(prices, dict) else 0
+            change_pct = prices.get("change_pct", 0) if isinstance(prices, dict) else 0
+            prev_close = prices.get("prev_close", 0) if isinstance(prices, dict) else 0
+
+            direction = "NEUTRAL"
+            confidence = 25
+
+            if isinstance(change_pct, (int, float)) and abs(change_pct) > 0.15:
+                direction = "BULLISH" if change_pct > 0 else "BEARISH"
+                confidence = min(55, 30 + int(abs(change_pct) * 12))
+
+            # VIX > 18 suggests caution
+            if isinstance(vix, (int, float)) and vix > 18:
+                confidence = max(confidence - 10, 15)
+
+            verdict = "PARTIAL" if direction != "NEUTRAL" else "NEUTRAL"
+
+            return EngineResult(
+                verdict=verdict,
+                direction=direction,
+                confidence=confidence,
+                data={
+                    "morning_bias": direction,
+                    "gift_nifty": 0,
+                    "gap_expected": False,
+                    "gap_pct": 0,
+                    "gap_fill_target": prev_close if prev_close else 0,
+                    "gap_fill_probability": 50,
+                    "global_cues": {"signals": [], "overall": "NEUTRAL"},
+                    "proxy": True,
+                    "proxy_source": f"VIX={vix:.1f}, Spot chg={change_pct:+.2f}%" if isinstance(vix, (int, float)) else "N/A",
+                }
+            )
+
         gift_data = self._assess_gift_nifty(ctx)
         global_data = self._assess_global_cues(ctx)
         gap_data = self._predict_gap(gift_data, global_data)

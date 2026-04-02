@@ -211,6 +211,8 @@ class MarketEngine:
                         "pe_oi": pe.get("oi", 0),
                         "ce_ltp": ce.get("ltp", 0),
                         "pe_ltp": pe.get("ltp", 0),
+                        "ce_chg": ce.get("change_oi", 0),
+                        "pe_chg": pe.get("change_oi", 0),
                         "ce_volume": ce.get("volume", 0),
                         "pe_volume": pe.get("volume", 0),
                         "ce_iv": 0,
@@ -219,8 +221,12 @@ class MarketEngine:
 
                 # Spot price in prices dict (engines expect this)
                 nifty_spot = context.get("nifty_spot", 0)
+                nifty_tick_data = self.prices.get(INDEX_CONFIG["NIFTY"]["spot_token"], {})
+                nifty_ohlc = nifty_tick_data.get("ohlc", {})
                 context["prices"]["spot"] = nifty_spot
+                context["prices"]["ltp"] = nifty_spot
                 context["prices"]["change_pct"] = context.get("nifty_change_pct", 0)
+                context["prices"]["prev_close"] = nifty_ohlc.get("close", nifty_spot) or nifty_spot
 
                 # Flat chain
                 context["chains"] = flat_chain
@@ -253,24 +259,42 @@ class MarketEngine:
                 # Lot sizes
                 context["lot_size"] = 25  # NIFTY lot
 
-                # Candles
-                context["candles"] = list(self._candle_history)
+                # Candles — provide both list format and dict format for engine compat
+                candle_list = list(self._candle_history)
+                context["candles"] = {
+                    "open": [c["open"] for c in candle_list],
+                    "high": [c["high"] for c in candle_list],
+                    "low": [c["low"] for c in candle_list],
+                    "close": [c["close"] for c in candle_list],
+                    "volume": [c["volume"] for c in candle_list],
+                }
+                context["candle_list"] = candle_list  # raw list for engines that want it
                 context["candles_15m"] = []
                 context["candles_1h"] = []
                 context["daily_candles"] = []
 
-                # Depth data (from last tick)
-                context["depth"] = {}
+                # Depth data — extract from NIFTY spot tick
+                nifty_tick = self.prices.get(INDEX_CONFIG["NIFTY"]["spot_token"], {})
+                raw_depth = nifty_tick.get("depth", {})
+                depth_bids = []
+                depth_asks = []
+                for b in raw_depth.get("buy", []):
+                    if b.get("price", 0) > 0:
+                        depth_bids.append({"price": b["price"], "qty": b.get("quantity", 0)})
+                for a in raw_depth.get("sell", []):
+                    if a.get("price", 0) > 0:
+                        depth_asks.append({"price": a["price"], "qty": a.get("quantity", 0)})
+                context["depth"] = {"bids": depth_bids, "asks": depth_asks}
 
                 # FII/DII placeholder
                 context["fii_dii"] = getattr(self, '_fii_data', {})
 
-                # Cross assets placeholder
+                # Cross assets placeholder (engines have VIX fallback)
                 context["cross_assets"] = {}
 
-                # Pre-market placeholder
+                # Pre-market placeholder (engines have VIX+spot fallback)
                 context["premarket"] = {}
-                context["global_cues"] = []
+                context["global_cues"] = {}  # dict, not list — e23 expects dict
 
                 # Run all engines
                 for engine_id, engine_inst in self.engine_registry.items():
@@ -356,6 +380,7 @@ class MarketEngine:
                                     "strike": strike, "atm": (strike == idx_atm),
                                     "ce_oi": ce.get("oi", 0), "pe_oi": pe.get("oi", 0),
                                     "ce_ltp": ce.get("ltp", 0), "pe_ltp": pe.get("ltp", 0),
+                                    "ce_chg": ce.get("change_oi", 0), "pe_chg": pe.get("change_oi", 0),
                                     "ce_volume": ce.get("volume", 0), "pe_volume": pe.get("volume", 0),
                                     "ce_iv": 0, "pe_iv": 0,
                                 })
