@@ -350,19 +350,38 @@ class MarketEngine:
                     "vix": context.get("vix", 0),
                 })
 
-                if signal and signal.get("type") not in ("SKIP", "WAIT"):
+                if signal and signal.get("type") not in ("SKIP", "WAIT", "HARD_BLOCK"):
                     await self.ws_manager.broadcast("signal", signal)
 
-                    # Record trade if actionable signal
+                    # Record trade — only during market hours + cooldown (no duplicate signals)
                     if self.trade_tracker and signal.get("type") in (
                         "BUY_CALL", "BUY_PUT", "STRONG_BUY_CALL", "STRONG_BUY_PUT",
                         "BIG_MOVE_ALERT", "VOLATILE_BUY"
                     ):
-                        try:
-                            self.trade_tracker.record_trade(signal, self.engine_results)
-                            logger.info(f"[TRADE] Recorded: {signal['type']} {signal.get('instrument','')}")
-                        except Exception as te:
-                            logger.error(f"[TRADE] Record failed: {te}")
+                        # Market hours check: 9:15 AM to 3:30 PM IST
+                        from datetime import datetime, timezone, timedelta
+                        ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+                        ist_time = ist_now.hour * 60 + ist_now.minute
+                        market_open = 555  # 9:15
+                        market_close = 930  # 15:30
+
+                        if market_open <= ist_time <= market_close:
+                            # Cooldown: don't record same signal type + strike within 5 minutes
+                            should_record = True
+                            sig_key = f"{signal.get('type')}_{signal.get('strike', 0)}"
+                            recent = self.trade_tracker.get_today_trades()
+                            for t in recent[-5:]:  # Check last 5 trades
+                                t_key = f"{t.get('signal_type')}_{t.get('strike', 0)}"
+                                if t_key == sig_key:
+                                    should_record = False
+                                    break
+
+                            if should_record:
+                                try:
+                                    self.trade_tracker.record_trade(signal, self.engine_results)
+                                    logger.info(f"[TRADE] Recorded: {signal['type']} {signal.get('instrument','')}")
+                                except Exception as te:
+                                    logger.error(f"[TRADE] Record failed: {te}")
 
                 # Also check active trades for SL/target hits
                 if self.trade_tracker:
