@@ -7,14 +7,16 @@ import TabEngines from './tabs/TabEngines'
 import TabTrades from './tabs/TabTrades'
 import TabAICard from './tabs/TabAICard'
 import TabLevels from './tabs/TabLevels'
+import TabUOA from './tabs/TabUOA'
 
 const ROOT_FONT = "'IBM Plex Mono', monospace"
 
-const TABS = ['SIGNAL', 'OI CHAIN', 'ENGINES', 'TRADES', 'AI CARD', 'LEVELS']
+const TABS = ['SIGNAL', 'OI CHAIN', 'UOA', 'ENGINES', 'TRADES', 'AI CARD', 'LEVELS']
 
 const TAB_COMPONENTS = {
   'SIGNAL': TabSignal,
   'OI CHAIN': TabOIChain,
+  'UOA': TabUOA,
   'ENGINES': TabEngines,
   'TRADES': TabTrades,
   'AI CARD': TabAICard,
@@ -24,6 +26,7 @@ const TAB_COMPONENTS = {
 const TAB_PROPS = {
   'SIGNAL': (d) => ({ signal: d.signal, engines: d.engines, tick: d.tick }),
   'OI CHAIN': (d) => ({ chain: d.chain, engines: d.engines }),
+  'UOA': (d) => ({ engines: d.engines }),
   'ENGINES': (d) => ({ engines: d.engines }),
   'TRADES': (d) => ({ signal: d.signal, engines: d.engines, tick: d.tick }),
   'AI CARD': (d) => ({ engines: d.engines, signal: d.signal }),
