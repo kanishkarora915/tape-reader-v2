@@ -1,17 +1,22 @@
 """
 E19 — Unusual Options Activity Engine (Tier 4: Big Move)
-HIGH PRIORITY ENGINE — generates direct BUY CALL/PUT signals with LTP, Entry, SL, Exit.
+HIGH PRIORITY — tracks live OI changes per strike, generates BUY CALL/PUT signals.
 
-Detects institutional hidden activity:
-1. Single-strike volume > 3x average = someone knows something
-2. Volume >> OI = new large positions (block trades)
-3. Far OTM strike with abnormal OI = institutional directional bet
-4. OI building 3+ cycles at same strike = accumulation
+Core Feature: OI CHANGE TRACKER
+- Every cycle: snapshot current OI per strike (CE + PE)
+- Compare with first snapshot: compute OI change (+ or -)
+- Show which strikes are building OI (institutional accumulation)
+- Show which strikes are cutting OI (short covering / exit)
+- Running sums: total CE OI added, total PE OI added
+- This data helps capture moves BEFORE they happen
 
-When detected: outputs a TRADE RECOMMENDATION with specific strike, LTP, entry, SL, exit.
+Signal: When OI change pattern shows clear directional intent → BUY CALL/PUT with LTP, Entry, SL, Exit
 """
 
 from .base import BaseEngine, EngineResult
+from datetime import datetime, timezone, timedelta
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 class UnusualActivityEngine(BaseEngine):
@@ -21,8 +26,11 @@ class UnusualActivityEngine(BaseEngine):
 
     def __init__(self):
         super().__init__()
-        self._oi_history = {}
-        self._max_history = 20
+        self._first_snapshot = None  # First OI snapshot of the day {strike: {ce_oi, pe_oi}}
+        self._prev_snapshot = None   # Previous cycle snapshot
+        self._oi_history = {}        # strike_type -> [oi values]
+        self._max_history = 30
+        self._cycle_count = 0
 
     def compute(self, ctx: dict) -> EngineResult:
         chain_raw = ctx.get("chains", {})
@@ -30,9 +38,9 @@ class UnusualActivityEngine(BaseEngine):
 
         if not chain_raw or spot <= 0:
             return EngineResult(verdict="NEUTRAL", confidence=0,
-                                data={"status": "No chain/spot data", "trade": None})
+                                data={"status": "No data", "oi_changes": [], "sums": {}})
 
-        # Normalize chain to list format
+        # Normalize chain to list
         chain = []
         if isinstance(chain_raw, dict):
             for strike, entry in chain_raw.items():
@@ -41,177 +49,209 @@ class UnusualActivityEngine(BaseEngine):
                     row["strike"] = int(strike)
                     chain.append(row)
         elif isinstance(chain_raw, list):
-            chain = chain_raw
+            chain = list(chain_raw)
 
         if not chain:
             return EngineResult(verdict="NEUTRAL", confidence=0,
-                                data={"status": "Empty chain", "trade": None})
+                                data={"status": "Empty chain", "oi_changes": [], "sums": {}})
 
         chain.sort(key=lambda r: r.get("strike", 0))
-
-        # ATM strike
         atm = round(spot / 50) * 50
+        self._cycle_count += 1
 
-        # ── 1. Volume spike detection (3x avg) ──
-        ce_vols = [r.get("ce_volume", 0) or 0 for r in chain]
-        pe_vols = [r.get("pe_volume", 0) or 0 for r in chain]
-        avg_ce = sum(ce_vols) / max(len(ce_vols), 1) or 1
-        avg_pe = sum(pe_vols) / max(len(pe_vols), 1) or 1
+        # ── Build current OI snapshot ──
+        current_snapshot = {}
+        for r in chain:
+            strike = r.get("strike", 0)
+            current_snapshot[strike] = {
+                "ce_oi": r.get("ce_oi", 0) or 0,
+                "pe_oi": r.get("pe_oi", 0) or 0,
+                "ce_ltp": r.get("ce_ltp", 0) or 0,
+                "pe_ltp": r.get("pe_ltp", 0) or 0,
+                "ce_volume": r.get("ce_volume", 0) or 0,
+                "pe_volume": r.get("pe_volume", 0) or 0,
+            }
 
-        uoa_signals = []
+        # Store first snapshot (session start reference)
+        if self._first_snapshot is None:
+            self._first_snapshot = {k: dict(v) for k, v in current_snapshot.items()}
+
+        # ── Compute OI changes from session start ──
+        oi_changes = []
+        total_ce_oi_added = 0
+        total_ce_oi_removed = 0
+        total_pe_oi_added = 0
+        total_pe_oi_removed = 0
+
+        for strike in sorted(current_snapshot.keys()):
+            curr = current_snapshot[strike]
+            first = self._first_snapshot.get(strike, {"ce_oi": 0, "pe_oi": 0})
+
+            ce_change = curr["ce_oi"] - first.get("ce_oi", 0)
+            pe_change = curr["pe_oi"] - first.get("pe_oi", 0)
+
+            # Track running sums
+            if ce_change > 0:
+                total_ce_oi_added += ce_change
+            else:
+                total_ce_oi_removed += abs(ce_change)
+
+            if pe_change > 0:
+                total_pe_oi_added += pe_change
+            else:
+                total_pe_oi_removed += abs(pe_change)
+
+            # Only include strikes with meaningful OI change
+            if abs(ce_change) > 1000 or abs(pe_change) > 1000:
+                is_atm = abs(strike - atm) <= 50
+                oi_changes.append({
+                    "strike": strike,
+                    "ce_oi": curr["ce_oi"],
+                    "pe_oi": curr["pe_oi"],
+                    "ce_change": ce_change,
+                    "pe_change": pe_change,
+                    "ce_ltp": curr["ce_ltp"],
+                    "pe_ltp": curr["pe_ltp"],
+                    "ce_volume": curr["ce_volume"],
+                    "pe_volume": curr["pe_volume"],
+                    "atm": is_atm,
+                    "otm_ce": strike > atm,
+                    "otm_pe": strike < atm,
+                })
+
+        # Sort by absolute OI change (most active first)
+        oi_changes.sort(key=lambda r: abs(r["ce_change"]) + abs(r["pe_change"]), reverse=True)
+
+        # ── Compute cycle-over-cycle changes (last 5s) ──
+        recent_changes = []
+        if self._prev_snapshot:
+            for strike in current_snapshot:
+                curr = current_snapshot[strike]
+                prev = self._prev_snapshot.get(strike, {"ce_oi": 0, "pe_oi": 0})
+                ce_delta = curr["ce_oi"] - prev.get("ce_oi", 0)
+                pe_delta = curr["pe_oi"] - prev.get("pe_oi", 0)
+                if abs(ce_delta) > 500 or abs(pe_delta) > 500:
+                    recent_changes.append({
+                        "strike": strike, "ce_delta": ce_delta, "pe_delta": pe_delta,
+                        "ce_ltp": curr["ce_ltp"], "pe_ltp": curr["pe_ltp"],
+                    })
+            recent_changes.sort(key=lambda r: abs(r["ce_delta"]) + abs(r["pe_delta"]), reverse=True)
+
+        self._prev_snapshot = {k: dict(v) for k, v in current_snapshot.items()}
+
+        # ── Analyze OI pattern for directional signal ──
+        # Call OI cutting (falling) = BULLISH (writers covering)
+        # Put OI cutting (falling) = BEARISH (writers covering)
+        # Call OI building = BEARISH (writers adding, expecting down)
+        # Put OI building = BULLISH (writers adding, expecting up)
+
+        ce_net = total_ce_oi_added - total_ce_oi_removed  # Positive = CE OI building
+        pe_net = total_pe_oi_added - total_pe_oi_removed  # Positive = PE OI building
+
+        # Institutional interpretation
+        bullish_score = 0
+        bearish_score = 0
+        interpretations = []
+
+        if total_ce_oi_removed > total_ce_oi_added * 1.3:
+            bullish_score += 3
+            interpretations.append(f"CE OI cutting -{total_ce_oi_removed:,.0f} — call writers covering = BULLISH")
+        elif total_ce_oi_added > total_ce_oi_removed * 1.3:
+            bearish_score += 3
+            interpretations.append(f"CE OI building +{total_ce_oi_added:,.0f} — call writers adding = BEARISH ceiling")
+
+        if total_pe_oi_removed > total_pe_oi_added * 1.3:
+            bearish_score += 3
+            interpretations.append(f"PE OI cutting -{total_pe_oi_removed:,.0f} — put writers covering = BEARISH")
+        elif total_pe_oi_added > total_pe_oi_removed * 1.3:
+            bullish_score += 3
+            interpretations.append(f"PE OI building +{total_pe_oi_added:,.0f} — put writers adding = BULLISH support")
+
+        # Volume spike detection
+        avg_ce_vol = sum(r.get("ce_volume", 0) for r in chain) / max(len(chain), 1) or 1
+        avg_pe_vol = sum(r.get("pe_volume", 0) for r in chain) / max(len(chain), 1) or 1
+
+        volume_spikes = []
         for r in chain:
             strike = r.get("strike", 0)
             ce_vol = r.get("ce_volume", 0) or 0
             pe_vol = r.get("pe_volume", 0) or 0
-            ce_oi = r.get("ce_oi", 0) or 0
-            pe_oi = r.get("pe_oi", 0) or 0
-            ce_ltp = r.get("ce_ltp", 0) or 0
-            pe_ltp = r.get("pe_ltp", 0) or 0
+            if ce_vol > avg_ce_vol * 3 and ce_vol > 3000:
+                volume_spikes.append({"strike": strike, "type": "CE", "volume": ce_vol, "ratio": round(ce_vol / avg_ce_vol, 1)})
+            if pe_vol > avg_pe_vol * 3 and pe_vol > 3000:
+                volume_spikes.append({"strike": strike, "type": "PE", "volume": pe_vol, "ratio": round(pe_vol / avg_pe_vol, 1)})
 
-            # CE unusual volume
-            if ce_vol > avg_ce * 2.5 and ce_vol > 5000:
-                otm = strike > atm
-                uoa_signals.append({
-                    "strike": strike, "type": "CE", "side": "BULLISH",
-                    "volume": ce_vol, "oi": ce_oi, "ltp": ce_ltp,
-                    "ratio": round(ce_vol / avg_ce, 1),
-                    "otm": otm, "distance": strike - atm,
-                    "strength": "STRONG" if ce_vol > avg_ce * 5 else "MODERATE",
-                })
-
-            # PE unusual volume
-            if pe_vol > avg_pe * 2.5 and pe_vol > 5000:
-                otm = strike < atm
-                uoa_signals.append({
-                    "strike": strike, "type": "PE", "side": "BEARISH",
-                    "volume": pe_vol, "oi": pe_oi, "ltp": pe_ltp,
-                    "ratio": round(pe_vol / avg_pe, 1),
-                    "otm": otm, "distance": atm - strike,
-                    "strength": "STRONG" if pe_vol > avg_pe * 5 else "MODERATE",
-                })
-
-        # ── 2. Block trades (volume >> OI) ──
-        block_trades = []
-        for r in chain:
-            strike = r.get("strike", 0)
-            for opt in [("ce", "BULLISH"), ("pe", "BEARISH")]:
-                vol = r.get(f"{opt[0]}_volume", 0) or 0
-                oi = r.get(f"{opt[0]}_oi", 0) or 0
-                ltp = r.get(f"{opt[0]}_ltp", 0) or 0
-                if oi > 0 and vol > oi * 1.5 and vol > 3000:
-                    block_trades.append({
-                        "strike": strike, "type": opt[0].upper(), "side": opt[1],
-                        "volume": vol, "oi": oi, "ltp": ltp,
-                        "vol_oi_ratio": round(vol / max(oi, 1), 1),
-                    })
-
-        # ── 3. OTM anomaly (far OTM with high OI) ──
-        all_oi = [r.get("ce_oi", 0) or 0 for r in chain] + [r.get("pe_oi", 0) or 0 for r in chain]
-        avg_oi = sum(all_oi) / max(len(all_oi), 1) or 1
-
-        otm_anomalies = []
-        for r in chain:
-            strike = r.get("strike", 0)
-            dist_pct = abs(strike - spot) / spot * 100 if spot else 0
-            if dist_pct < 1.5:
-                continue
-            ce_oi = r.get("ce_oi", 0) or 0
-            pe_oi = r.get("pe_oi", 0) or 0
-            ce_ltp = r.get("ce_ltp", 0) or 0
-            pe_ltp = r.get("pe_ltp", 0) or 0
-
-            if ce_oi > avg_oi * 3 and strike > atm:
-                otm_anomalies.append({
-                    "strike": strike, "type": "CE", "side": "BULLISH",
-                    "oi": ce_oi, "ltp": ce_ltp, "ratio": round(ce_oi / avg_oi, 1),
-                    "distance_pct": round(dist_pct, 1),
-                })
-            if pe_oi > avg_oi * 3 and strike < atm:
-                otm_anomalies.append({
-                    "strike": strike, "type": "PE", "side": "BEARISH",
-                    "oi": pe_oi, "ltp": pe_ltp, "ratio": round(pe_oi / avg_oi, 1),
-                    "distance_pct": round(dist_pct, 1),
-                })
-
-        # ── 4. OI accumulation (building over cycles) ──
-        builds = []
-        for r in chain:
-            strike = r.get("strike", 0)
-            for opt in ["ce", "pe"]:
-                oi = r.get(f"{opt}_oi", 0) or 0
-                key = f"{strike}_{opt}"
-                if key not in self._oi_history:
-                    self._oi_history[key] = []
-                self._oi_history[key].append(oi)
-                if len(self._oi_history[key]) > self._max_history:
-                    self._oi_history[key].pop(0)
-
-                hist = self._oi_history[key]
-                if len(hist) >= 3 and hist[-1] > hist[-2] > hist[-3] and hist[-3] > 0:
-                    growth = ((hist[-1] - hist[-3]) / hist[-3]) * 100
-                    if growth > 5:
-                        ltp = r.get(f"{opt}_ltp", 0) or 0
-                        builds.append({
-                            "strike": strike, "type": opt.upper(),
-                            "side": "BULLISH" if opt == "ce" else "BEARISH",
-                            "oi": oi, "ltp": ltp, "growth_pct": round(growth, 1),
-                        })
-
-        # ── Combine all signals and generate trade recommendation ──
-        all_signals = uoa_signals + block_trades + otm_anomalies + builds
-        total = len(all_signals)
-
-        bullish_signals = [s for s in all_signals if s.get("side") == "BULLISH"]
-        bearish_signals = [s for s in all_signals if s.get("side") == "BEARISH"]
-
-        bull_count = len(bullish_signals)
-        bear_count = len(bearish_signals)
-
-        if bull_count > bear_count:
+        # Direction
+        if bullish_score > bearish_score:
             direction = "BULLISH"
-            dominant_signals = sorted(bullish_signals, key=lambda s: s.get("volume", 0) or s.get("oi", 0), reverse=True)
-        elif bear_count > bull_count:
+        elif bearish_score > bullish_score:
             direction = "BEARISH"
-            dominant_signals = sorted(bearish_signals, key=lambda s: s.get("volume", 0) or s.get("oi", 0), reverse=True)
         else:
             direction = "NEUTRAL"
-            dominant_signals = []
 
-        # ── Generate TRADE with LTP, Entry, SL, Exit ──
+        # ── Generate trade recommendation ──
         trade = None
-        if dominant_signals and direction != "NEUTRAL":
-            best = dominant_signals[0]
-            strike = best.get("strike", atm)
-            opt_type = best.get("type", "CE" if direction == "BULLISH" else "PE")
-            ltp = best.get("ltp", 0)
+        if direction != "NEUTRAL" and oi_changes:
+            # Pick the strike with highest OI change matching direction
+            if direction == "BULLISH":
+                # Look for CE near ATM with good LTP
+                candidates = [r for r in oi_changes if r["ce_ltp"] > 5 and abs(r["strike"] - atm) <= 200]
+                if candidates:
+                    best = min(candidates, key=lambda r: abs(r["strike"] - atm))
+                    ltp = best["ce_ltp"]
+                    if ltp > 0:
+                        trade = {
+                            "action": "BUY CALL",
+                            "instrument": f"NIFTY {best['strike']} CE",
+                            "strike": best["strike"],
+                            "opt_type": "CE",
+                            "ltp": ltp,
+                            "entry": ltp,
+                            "sl": round(ltp * 0.80, 1),
+                            "target1": round(ltp * 1.30, 1),
+                            "target2": round(ltp * 1.60, 1),
+                            "rr": f"1:{round(0.30 / 0.20, 1)}",
+                            "reason": interpretations[0] if interpretations else "OI pattern bullish",
+                            "confidence": "HIGH" if bullish_score >= 5 else "MODERATE",
+                        }
+            else:
+                candidates = [r for r in oi_changes if r["pe_ltp"] > 5 and abs(r["strike"] - atm) <= 200]
+                if candidates:
+                    best = min(candidates, key=lambda r: abs(r["strike"] - atm))
+                    ltp = best["pe_ltp"]
+                    if ltp > 0:
+                        trade = {
+                            "action": "BUY PUT",
+                            "instrument": f"NIFTY {best['strike']} PE",
+                            "strike": best["strike"],
+                            "opt_type": "PE",
+                            "ltp": ltp,
+                            "entry": ltp,
+                            "sl": round(ltp * 0.80, 1),
+                            "target1": round(ltp * 1.30, 1),
+                            "target2": round(ltp * 1.60, 1),
+                            "rr": f"1:{round(0.30 / 0.20, 1)}",
+                            "reason": interpretations[0] if interpretations else "OI pattern bearish",
+                            "confidence": "HIGH" if bearish_score >= 5 else "MODERATE",
+                        }
 
-            if ltp > 0:
-                entry = ltp
-                sl = round(entry * 0.80, 1)  # 20% SL
-                target1 = round(entry * 1.30, 1)  # 30% target
-                target2 = round(entry * 1.60, 1)  # 60% target
-                risk = entry - sl
-                reward = target1 - entry
-                rr = round(reward / risk, 1) if risk > 0 else 0
+        # Confidence
+        total_signals = len(volume_spikes) + len([r for r in oi_changes if abs(r["ce_change"]) > 10000 or abs(r["pe_change"]) > 10000])
+        confidence = min(20 + total_signals * 5 + max(bullish_score, bearish_score) * 8, 95)
+        verdict = "PASS" if trade else ("PARTIAL" if len(oi_changes) > 3 else "NEUTRAL")
 
-                trade = {
-                    "action": f"BUY {'CALL' if opt_type == 'CE' else 'PUT'}",
-                    "instrument": f"NIFTY {strike} {opt_type}",
-                    "strike": strike,
-                    "opt_type": opt_type,
-                    "ltp": ltp,
-                    "entry": ltp,
-                    "sl": sl,
-                    "target1": target1,
-                    "target2": target2,
-                    "rr": f"1:{rr}",
-                    "reason": best.get("strength", "MODERATE") + f" — {opt_type} vol {best.get('volume', 0):,} ({best.get('ratio', 0)}x avg)" if best.get("volume") else f"OI anomaly {best.get('oi', 0):,}",
-                    "confidence": "HIGH" if best.get("ratio", 0) > 5 or best.get("strength") == "STRONG" else "MODERATE",
-                }
-
-        categories = sum(1 for lst in [uoa_signals, block_trades, otm_anomalies, builds] if lst)
-        confidence = min(20 + total * 6 + categories * 12, 95)
-        verdict = "PASS" if trade else ("PARTIAL" if total > 0 else "NEUTRAL")
+        # Sums for frontend display
+        sums = {
+            "ce_oi_added": int(total_ce_oi_added),
+            "ce_oi_removed": int(total_ce_oi_removed),
+            "ce_net": int(ce_net),
+            "pe_oi_added": int(total_pe_oi_added),
+            "pe_oi_removed": int(total_pe_oi_removed),
+            "pe_net": int(pe_net),
+            "direction": direction,
+            "bullish_score": bullish_score,
+            "bearish_score": bearish_score,
+        }
 
         return EngineResult(
             verdict=verdict,
@@ -219,14 +259,12 @@ class UnusualActivityEngine(BaseEngine):
             confidence=confidence,
             data={
                 "trade": trade,
-                "uoa_count": len(uoa_signals),
-                "block_count": len(block_trades),
-                "otm_count": len(otm_anomalies),
-                "build_count": len(builds),
-                "total_signals": total,
-                "bull_signals": bull_count,
-                "bear_signals": bear_count,
-                "top_signal": str(dominant_signals[0].get("strike", "—")) + " " + dominant_signals[0].get("type", "") if dominant_signals else "None",
-                "status": f"{total} signals detected" if total else "Monitoring...",
+                "oi_changes": oi_changes[:20],  # Top 20 most active strikes
+                "recent_changes": recent_changes[:10],  # Last 5s changes
+                "volume_spikes": volume_spikes[:10],
+                "sums": sums,
+                "interpretations": interpretations,
+                "cycle": self._cycle_count,
+                "status": f"{len(oi_changes)} strikes active | {direction}" if oi_changes else "Monitoring...",
             }
         )
