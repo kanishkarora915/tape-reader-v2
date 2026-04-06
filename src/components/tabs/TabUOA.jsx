@@ -30,7 +30,14 @@ export default function TabUOA({ engines }) {
   const oiChanges = e19.oi_changes || []
   const recentChanges = e19.recent_changes || []
   const volumeSpikes = e19.volume_spikes || []
-  const sums = e19.sums || {}
+  const rawSums = e19.sums || {}
+  const sums = typeof rawSums === 'string' ? (() => { try { return JSON.parse(rawSums) } catch { return {} } })() : rawSums
+  const ceAdded = Number(sums.ce_oi_added) || 0
+  const ceRemoved = Number(sums.ce_oi_removed) || 0
+  const ceNet = Number(sums.ce_net) || 0
+  const peAdded = Number(sums.pe_oi_added) || 0
+  const peRemoved = Number(sums.pe_oi_removed) || 0
+  const peNet = Number(sums.pe_net) || 0
   const interpretations = e19.interpretations || []
   const trade = e19.trade
   const status = e19.status || 'Waiting for data...'
@@ -86,18 +93,18 @@ export default function TabUOA({ engines }) {
           <div style={{ ...S.header, fontSize: 9, marginBottom: 10 }}>CALL OI SUMMARY</div>
           <div style={S.row}>
             <span style={{ flex: 1, ...S.label }}>OI ADDED</span>
-            <span style={{ ...S.green, fontWeight: 600, fontSize: 13 }}>{chgSign(sums.ce_oi_added)}{fmt(sums.ce_oi_added)}</span>
+            <span style={{ ...S.green, fontWeight: 600, fontSize: 13 }}>{chgSign(ceAdded)}{fmt(ceAdded)}</span>
           </div>
           <div style={S.row}>
             <span style={{ flex: 1, ...S.label }}>OI REMOVED</span>
-            <span style={{ ...S.red, fontWeight: 600, fontSize: 13 }}>-{fmt(sums.ce_oi_removed)}</span>
+            <span style={{ ...S.red, fontWeight: 600, fontSize: 13 }}>-{fmt(ceRemoved)}</span>
           </div>
           <div style={{ ...S.row, borderBottom: 'none', paddingTop: 8 }}>
             <span style={{ flex: 1, ...S.label, fontWeight: 700 }}>NET CE OI</span>
-            <span style={{ color: chgColor(sums.ce_net), fontWeight: 700, fontSize: 15 }}>{chgSign(sums.ce_net)}{fmt(sums.ce_net)}</span>
+            <span style={{ color: chgColor(ceNet), fontWeight: 700, fontSize: 15 }}>{chgSign(ceNet)}{fmt(ceNet)}</span>
           </div>
           <div style={{ marginTop: 8, fontSize: 9, color: '#7A5600' }}>
-            {(sums.ce_net || 0) > 0 ? '▲ CE OI building — writers adding = BEARISH ceiling' : (sums.ce_net || 0) < 0 ? '▼ CE OI cutting — writers covering = BULLISH' : '— No significant change'}
+            {ceNet > 0 ? '▲ CE OI building — writers adding = BEARISH ceiling' : ceNet < 0 ? '▼ CE OI cutting — writers covering = BULLISH' : '— No significant change'}
           </div>
         </div>
 
@@ -106,18 +113,18 @@ export default function TabUOA({ engines }) {
           <div style={{ ...S.header, fontSize: 9, marginBottom: 10 }}>PUT OI SUMMARY</div>
           <div style={S.row}>
             <span style={{ flex: 1, ...S.label }}>OI ADDED</span>
-            <span style={{ ...S.green, fontWeight: 600, fontSize: 13 }}>{chgSign(sums.pe_oi_added)}{fmt(sums.pe_oi_added)}</span>
+            <span style={{ ...S.green, fontWeight: 600, fontSize: 13 }}>{chgSign(peAdded)}{fmt(peAdded)}</span>
           </div>
           <div style={S.row}>
             <span style={{ flex: 1, ...S.label }}>OI REMOVED</span>
-            <span style={{ ...S.red, fontWeight: 600, fontSize: 13 }}>-{fmt(sums.pe_oi_removed)}</span>
+            <span style={{ ...S.red, fontWeight: 600, fontSize: 13 }}>-{fmt(peRemoved)}</span>
           </div>
           <div style={{ ...S.row, borderBottom: 'none', paddingTop: 8 }}>
             <span style={{ flex: 1, ...S.label, fontWeight: 700 }}>NET PE OI</span>
-            <span style={{ color: chgColor(sums.pe_net), fontWeight: 700, fontSize: 15 }}>{chgSign(sums.pe_net)}{fmt(sums.pe_net)}</span>
+            <span style={{ color: chgColor(peNet), fontWeight: 700, fontSize: 15 }}>{chgSign(peNet)}{fmt(peNet)}</span>
           </div>
           <div style={{ marginTop: 8, fontSize: 9, color: '#7A5600' }}>
-            {(sums.pe_net || 0) > 0 ? '▲ PE OI building — writers adding = BULLISH support' : (sums.pe_net || 0) < 0 ? '▼ PE OI cutting — writers covering = BEARISH' : '— No significant change'}
+            {peNet > 0 ? '▲ PE OI building — writers adding = BULLISH support' : peNet < 0 ? '▼ PE OI cutting — writers covering = BEARISH' : '— No significant change'}
           </div>
         </div>
       </div>

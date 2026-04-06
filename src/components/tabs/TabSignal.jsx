@@ -37,14 +37,17 @@ export default function TabSignal({ signal, engines, tick }) {
     const keys = ['e05', 'e06', 'e07', 'e08', 'e09', 'e10', 'e11']
     let bull = 0, bear = 0
     keys.forEach(k => {
-      const v = engines?.[k]?.verdict || engines?.[k]?.bias || ''
-      if (v.toUpperCase().includes('BULL') || v.toUpperCase().includes('CALL')) bull++
-      else if (v.toUpperCase().includes('BEAR') || v.toUpperCase().includes('PUT')) bear++
+      const eng = engines?.[k]
+      if (!eng) return
+      const v = eng.verdict || eng.direction || eng.bias || eng.data?.direction || eng.data?.bias || ''
+      const vs = (typeof v === 'string' ? v : String(v)).toUpperCase()
+      if (vs.includes('BULL') || vs.includes('CALL') || vs.includes('LONG')) bull++
+      else if (vs.includes('BEAR') || vs.includes('PUT') || vs.includes('SHORT')) bear++
     })
     const total = keys.length
     return bull >= bear
-      ? { label: `${bull}/${total} CALL`, color: '#FFB300' }
-      : { label: `${bear}/${total} PUT`, color: '#FFB300' }
+      ? { label: `${bull}/${total} CALL`, color: bull > 0 ? '#00C853' : '#FFB300' }
+      : { label: `${bear}/${total} PUT`, color: '#FF3D00' }
   }
 
   const tierT3 = () => {
@@ -67,7 +70,12 @@ export default function TabSignal({ signal, engines, tick }) {
   ]
 
   // --- E09 Technical votes ---
-  const techVotes = engines?.e09?.data?.votes || {}
+  const techData09 = engines?.e09?.data || {}
+  let rawVotes = techData09.votes
+  if (typeof rawVotes === 'string') {
+    try { rawVotes = JSON.parse(rawVotes) } catch { rawVotes = null }
+  }
+  const techVotes = (rawVotes && typeof rawVotes === 'object') ? rawVotes : {}
   const techIndicators = ['ema', 'rsi', 'macd', 'supertrend']
 
   const voteLine = (v) => {
@@ -91,6 +99,14 @@ export default function TabSignal({ signal, engines, tick }) {
   const pcrInterpretation = pcr?.interpretation ?? pcr?.note ?? ''
 
   // --- E07 Writer traps ---
+  const fmtTime = (ts) => {
+    if (!ts) return ''
+    if (typeof ts === 'number' && ts > 1000000000) {
+      const d = new Date(ts * 1000)
+      return d.toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false})
+    }
+    return String(ts)
+  }
   const traps = (engines?.e07?.data?.traps || []).slice(0, 5)
 
   // --- IV Gate color ---
@@ -343,7 +359,7 @@ export default function TabSignal({ signal, engines, tick }) {
           </div>
 
           {/* Table rows */}
-          {engines?.e09?.data?.votes ? (
+          {Object.keys(techVotes).length > 0 ? (
             techIndicators.map((ind) => {
               const v = voteLine(techVotes[ind])
               return (
@@ -361,6 +377,10 @@ export default function TabSignal({ signal, engines, tick }) {
                 </div>
               )
             })
+          ) : engines?.e09?.data ? (
+            <div style={{ fontSize: 11, padding: '8px 0', color: '#FFB300' }}>
+              {techData09.direction || techData09.summary || 'Technical data received — votes parsing...'}
+            </div>
           ) : (
             <div style={{ color: '#333', fontSize: 11, padding: '12px 0' }}>
               Awaiting technical data...
@@ -415,7 +435,7 @@ export default function TabSignal({ signal, engines, tick }) {
                 color: trap.active !== false ? '#FFB300' : '#444',
                 lineHeight: 1.6,
               }}>
-                <span style={{ color: '#555', marginRight: 4 }}>[{trap.timestamp || trap.time || '--:--'}]</span>
+                <span style={{ color: '#555', marginRight: 4 }}>[{fmtTime(trap.timestamp) || fmtTime(trap.time) || '--:--'}]</span>
                 {trap.strike || ''} &mdash; {trap.description || trap.text || ''}
               </div>
             ))
