@@ -198,6 +198,23 @@ async def logout(buyby_session: str = Cookie(None)):
 
 # ── Data Routes ─────────────────────────────────────────────────────────
 
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint — shows engine internals."""
+    if not market_engine:
+        return {"engine": None}
+    return {
+        "engine_running": market_engine._running,
+        "prices_count": len(market_engine.prices),
+        "chains_count": {k: len(v) for k, v in market_engine.chains.items()},
+        "instruments_count": len(market_engine.instruments),
+        "engine_results_count": len(market_engine.engine_results),
+        "candle_count": len(market_engine._candle_history),
+        "has_ticker": market_engine._ticker is not None,
+        "sample_prices": {k: v.get("last_price", 0) for k, v in list(market_engine.prices.items())[:3]},
+    }
+
+
 @app.get("/api/engines")
 async def get_engines():
     """Return all 24 engine states."""

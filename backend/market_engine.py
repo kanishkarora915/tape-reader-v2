@@ -434,7 +434,8 @@ class MarketEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"[ENGINE] Loop error: {e}")
+                import traceback
+                logger.error(f"[ENGINE] Loop error: {e}\n{traceback.format_exc()}")
 
             await asyncio.sleep(5)
 
