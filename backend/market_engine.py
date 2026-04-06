@@ -305,7 +305,7 @@ class MarketEngine:
                 context["premarket"] = {}
                 context["global_cues"] = {}  # dict, not list — e23 expects dict
 
-                # Run all engines
+                # Run all engines (isolated — never crashes the loop)
                 for engine_id, engine_inst in self.engine_registry.items():
                     try:
                         engine_inst.run(context)
@@ -314,109 +314,109 @@ class MarketEngine:
                         self.engine_results[engine_id] = {
                             "name": getattr(engine_inst, 'name', engine_id),
                             "tier": getattr(engine_inst, 'tier', 0),
-                            "verdict": "NEUTRAL",
-                            "direction": "NEUTRAL",
-                            "confidence": 0,
-                            "data": {"error": str(e)},
+                            "verdict": "NEUTRAL", "direction": "NEUTRAL",
+                            "confidence": 0, "data": {"error": str(e)},
                         }
 
-                # Run signal combiner
-                signal = self.combiner.combine(self.engine_results)
+                logger.info(f"[ENGINE] {len(self.engine_results)} engines computed")
 
-                # Broadcast to WebSocket clients
-                await self.ws_manager.broadcast("engines", self.engine_results)
-                await self.ws_manager.broadcast("tick", {
-                    "nifty": {
-                        "ltp": context.get("nifty_spot", 0),
-                        "change": context.get("nifty_change", 0),
-                        "changePct": context.get("nifty_change_pct", 0),
-                        "high": context.get("nifty_high", 0),
-                        "low": context.get("nifty_low", 0),
-                    },
-                    "banknifty": {
-                        "ltp": context.get("banknifty_spot", 0),
-                        "change": context.get("banknifty_change", 0),
-                        "changePct": context.get("banknifty_change_pct", 0),
-                        "high": context.get("banknifty_high", 0),
-                        "low": context.get("banknifty_low", 0),
-                    },
-                    "sensex": {
-                        "ltp": context.get("sensex_spot", 0),
-                        "change": context.get("sensex_change", 0),
-                        "changePct": context.get("sensex_change_pct", 0),
-                        "high": context.get("sensex_high", 0),
-                        "low": context.get("sensex_low", 0),
-                    },
-                    "vix": context.get("vix", 0),
-                })
+                # Run signal combiner (isolated)
+                signal = None
+                try:
+                    signal = self.combiner.combine(self.engine_results)
+                except Exception as e:
+                    logger.error(f"[ENGINE] Combiner error: {e}")
 
-                if signal and signal.get("type") not in ("SKIP", "WAIT", "HARD_BLOCK"):
-                    await self.ws_manager.broadcast("signal", signal)
+                # Broadcast to WebSocket clients (isolated — don't crash loop if WS fails)
+                try:
+                    await self.ws_manager.broadcast("engines", self.engine_results)
+                except Exception as e:
+                    logger.error(f"[ENGINE] Engine broadcast error: {e}")
+                try:
+                    await self.ws_manager.broadcast("tick", {
+                        "nifty": {
+                            "ltp": context.get("nifty_spot", 0),
+                            "change": context.get("nifty_change", 0),
+                            "changePct": context.get("nifty_change_pct", 0),
+                            "high": context.get("nifty_high", 0),
+                            "low": context.get("nifty_low", 0),
+                        },
+                        "banknifty": {
+                            "ltp": context.get("banknifty_spot", 0),
+                            "change": context.get("banknifty_change", 0),
+                            "changePct": context.get("banknifty_change_pct", 0),
+                            "high": context.get("banknifty_high", 0),
+                            "low": context.get("banknifty_low", 0),
+                        },
+                        "sensex": {
+                            "ltp": context.get("sensex_spot", 0),
+                            "change": context.get("sensex_change", 0),
+                            "changePct": context.get("sensex_change_pct", 0),
+                            "high": context.get("sensex_high", 0),
+                            "low": context.get("sensex_low", 0),
+                        },
+                        "vix": context.get("vix", 0),
+                    })
+                except Exception as e:
+                    logger.error(f"[ENGINE] Tick broadcast error: {e}")
 
-                    # Record trade — only during market hours + cooldown (no duplicate signals)
-                    if self.trade_tracker and signal.get("type") in (
-                        "BUY_CALL", "BUY_PUT", "STRONG_BUY_CALL", "STRONG_BUY_PUT",
-                        "BIG_MOVE_ALERT", "VOLATILE_BUY"
-                    ):
-                        # Market hours check: 9:15 AM to 3:30 PM IST
-                        from datetime import datetime, timezone, timedelta
-                        ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
-                        ist_time = ist_now.hour * 60 + ist_now.minute
-                        market_open = 555  # 9:15
-                        market_close = 930  # 15:30
+                # Signal broadcast (isolated)
+                try:
+                    if signal and signal.get("type") not in ("SKIP", "WAIT", "HARD_BLOCK"):
+                        await self.ws_manager.broadcast("signal", signal)
 
-                        if market_open <= ist_time <= market_close:
-                            # Cooldown: don't record same signal type + strike within 5 minutes
-                            should_record = True
-                            sig_key = f"{signal.get('type')}_{signal.get('strike', 0)}"
-                            recent = self.trade_tracker.get_today_trades()
-                            for t in recent[-5:]:  # Check last 5 trades
-                                t_key = f"{t.get('signal_type')}_{t.get('strike', 0)}"
-                                if t_key == sig_key:
-                                    should_record = False
-                                    break
+                        # Record trade during market hours with cooldown
+                        if self.trade_tracker and signal.get("type") in (
+                            "BUY_CALL", "BUY_PUT", "STRONG_BUY_CALL", "STRONG_BUY_PUT",
+                            "BIG_MOVE_ALERT", "VOLATILE_BUY"
+                        ):
+                            ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+                            ist_time = ist_now.hour * 60 + ist_now.minute
+                            if 555 <= ist_time <= 930:  # 9:15 to 15:30
+                                sig_key = f"{signal.get('type')}_{signal.get('strike', 0)}"
+                                recent = self.trade_tracker.get_today_trades()
+                                if not any(f"{t.get('signal_type')}_{t.get('strike', 0)}" == sig_key for t in recent[-5:]):
+                                    try:
+                                        self.trade_tracker.record_trade(signal, self.engine_results)
+                                        logger.info(f"[TRADE] Recorded: {signal['type']} {signal.get('instrument','')}")
+                                    except Exception as te:
+                                        logger.error(f"[TRADE] Record failed: {te}")
+                except Exception as e:
+                    logger.error(f"[ENGINE] Signal/trade error: {e}")
 
-                            if should_record:
-                                try:
-                                    self.trade_tracker.record_trade(signal, self.engine_results)
-                                    logger.info(f"[TRADE] Recorded: {signal['type']} {signal.get('instrument','')}")
-                                except Exception as te:
-                                    logger.error(f"[TRADE] Record failed: {te}")
+                # Check active trades (isolated)
+                try:
+                    if self.trade_tracker:
+                        self.trade_tracker.check_active_trades({"nifty_spot": context.get("nifty_spot", 0)})
+                except Exception as e:
+                    logger.error(f"[ENGINE] Trade check error: {e}")
 
-                # Also check active trades for SL/target hits
-                if self.trade_tracker:
-                    tick_data = {"nifty_spot": context.get("nifty_spot", 0)}
-                    self.trade_tracker.check_active_trades(tick_data)
-
-                # Broadcast option chain as array for frontend
-                chain_array = sorted(flat_chain.values(), key=lambda r: r.get("strike", 0))
-                # Mark ATM row
-                for row in chain_array:
-                    row["atm"] = (row.get("strike", 0) == atm)
-                if chain_array:
-                    # Compute max pain
-                    max_pain = atm
-                    min_pain_val = float("inf")
+                # Chain broadcast (isolated)
+                try:
+                    chain_array = sorted(flat_chain.values(), key=lambda r: r.get("strike", 0))
                     for row in chain_array:
-                        pain = sum(
-                            max(0, row["strike"] - r["strike"]) * r.get("pe_oi", 0) +
-                            max(0, r["strike"] - row["strike"]) * r.get("ce_oi", 0)
-                            for r in chain_array
-                        )
-                        if pain < min_pain_val:
-                            min_pain_val = pain
-                            max_pain = row["strike"]
+                        row["atm"] = (row.get("strike", 0) == atm)
+                    if chain_array:
+                        max_pain = atm
+                        min_pain_val = float("inf")
+                        for row in chain_array:
+                            pain = sum(
+                                max(0, row["strike"] - r["strike"]) * r.get("pe_oi", 0) +
+                                max(0, r["strike"] - row["strike"]) * r.get("ce_oi", 0)
+                                for r in chain_array
+                            )
+                            if pain < min_pain_val:
+                                min_pain_val = pain
+                                max_pain = row["strike"]
+                        await self.ws_manager.broadcast("chain", chain_array, index="NIFTY", max_pain=max_pain)
 
-                    await self.ws_manager.broadcast("chain", chain_array, index="NIFTY", max_pain=max_pain)
-
-                    # Also broadcast BANKNIFTY and SENSEX chains if available
                     for idx in ("BANKNIFTY", "SENSEX"):
                         idx_chain = self.chains.get(idx, {})
                         if idx_chain:
                             idx_array = []
-                            for strike, data in idx_chain.items():
-                                ce = data.get("ce", {})
-                                pe = data.get("pe", {})
+                            for strike, data_item in idx_chain.items():
+                                ce = data_item.get("ce", {})
+                                pe = data_item.get("pe", {})
                                 idx_spot = context.get(f"{idx.lower()}_spot", 0)
                                 idx_gap = 100
                                 idx_atm = round(idx_spot / idx_gap) * idx_gap if idx_spot else 0
@@ -430,6 +430,8 @@ class MarketEngine:
                                 })
                             idx_array.sort(key=lambda r: r.get("strike", 0))
                             await self.ws_manager.broadcast("chain", idx_array, index=idx)
+                except Exception as e:
+                    logger.error(f"[ENGINE] Chain broadcast error: {e}")
 
             except asyncio.CancelledError:
                 break
