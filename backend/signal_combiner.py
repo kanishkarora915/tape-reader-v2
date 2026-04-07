@@ -136,14 +136,15 @@ class SignalCombiner:
 
         # ── Entry / SL / Targets ──
         # Priority: Use E19 UOA trade if available (has exact LTP/strike)
-        e19_trade = engine_results.get("e19", {}).get("data", {}).get("trade")
+        e19_data = engine_results.get("e19", {}).get("data", {})
+        e19_trade = e19_data.get("trade") if isinstance(e19_data, dict) else None
         if e19_trade and isinstance(e19_trade, dict) and e19_trade.get("ltp"):
-            instrument = e19_trade.get("instrument", "NIFTY")
-            strike = e19_trade.get("strike", 0)
-            entry_mid = e19_trade.get("entry", 0)
-            sl = e19_trade.get("sl", 0)
-            t1_target = e19_trade.get("target1", 0)
-            t2_target = e19_trade.get("target2", 0)
+            instrument = str(e19_trade.get("instrument", "NIFTY"))
+            strike = int(e19_trade.get("strike", 0) or 0)
+            entry_mid = float(e19_trade.get("entry", 0) or 0)
+            sl = float(e19_trade.get("sl", 0) or 0)
+            t1_target = float(e19_trade.get("target1", 0) or 0)
+            t2_target = float(e19_trade.get("target2", 0) or 0)
             t3_target = round(entry_mid * 2.0, 1) if entry_mid else 0
             rr = e19_trade.get("rr", "—")
             entry_arr = [entry_mid, entry_mid] if entry_mid else []

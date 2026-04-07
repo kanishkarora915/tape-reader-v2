@@ -221,15 +221,39 @@ async def get_engines():
     if not market_engine:
         return JSONResponse({"error": "Engine not running"}, status_code=503)
     try:
-        # Ensure all values are JSON-serializable
-        import json
-        safe_results = {}
+        import json, math
+
+        def sanitize(obj):
+            """Make any value JSON-safe."""
+            if obj is None:
+                return None
+            if isinstance(obj, bool):
+                return obj
+            if isinstance(obj, (int,)):
+                return obj
+            if isinstance(obj, float):
+                if math.isnan(obj) or math.isinf(obj):
+                    return 0
+                return round(obj, 4)
+            if isinstance(obj, str):
+                return obj
+            if isinstance(obj, dict):
+                return {str(k): sanitize(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                return [sanitize(v) for v in obj]
+            # numpy types etc
+            try:
+                return float(obj)
+            except (TypeError, ValueError):
+                return str(obj)
+
+        safe = {}
         for eid, result in market_engine.engine_results.items():
             if isinstance(result, dict):
-                safe_results[eid] = result
+                safe[eid] = sanitize(result)
             else:
-                safe_results[eid] = {"name": str(eid), "tier": 0, "verdict": "NEUTRAL", "direction": "NEUTRAL", "confidence": 0, "data": {}}
-        return {"engines": safe_results}
+                safe[eid] = {"name": str(eid), "tier": 0, "verdict": "NEUTRAL", "direction": "NEUTRAL", "confidence": 0, "data": {}}
+        return {"engines": safe}
     except Exception as e:
         logger.error(f"[API] /api/engines error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -260,13 +284,25 @@ async def get_chain(index: str):
 @app.get("/api/trades")
 async def get_trades():
     """Get today's trade log."""
-    return {"trades": trade_tracker.get_today_trades()}
+    try:
+        trades = trade_tracker.get_today_trades()
+        # Strip engine_verdicts (huge + non-serializable) from response
+        safe = []
+        for t in trades:
+            clean = {k: v for k, v in t.items() if k != "engine_verdicts"}
+            safe.append(clean)
+        return {"trades": safe}
+    except Exception as e:
+        return {"trades": [], "error": str(e)}
 
 
 @app.get("/api/trade-stats")
 async def get_trade_stats():
     """Get trade statistics and learning insights."""
-    return trade_tracker.get_stats()
+    try:
+        return trade_tracker.get_stats()
+    except Exception as e:
+        return {"today_pnl": 0, "today_trades": 0, "won": 0, "lost": 0, "win_rate": 0, "avg_rr": "—", "accuracy_trend": "—", "learning_insights": [str(e)]}
 
 
 # ── WebSocket ───────────────────────────────────────────────────────────

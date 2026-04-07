@@ -19,26 +19,33 @@ class TradeTracker:
 
     def record_trade(self, signal_data: dict, engines_snapshot: dict | None = None) -> dict:
         """Create a new trade record from a generated signal."""
+        # Handle entry as array [low, high] or single number
+        entry_raw = signal_data.get("entry") or signal_data.get("entry_price")
+        if isinstance(entry_raw, list) and entry_raw:
+            entry_price = sum(float(x) for x in entry_raw) / len(entry_raw)
+        elif isinstance(entry_raw, (int, float)):
+            entry_price = float(entry_raw)
+        else:
+            entry_price = None
+
         trade = {
             "id": str(uuid.uuid4()),
             "timestamp": datetime.now().strftime("%H:%M:%S"),
             "date": date.today().isoformat(),
-            "signal_type": signal_data.get("signal_type", "BUY CALL"),
+            "signal_type": signal_data.get("type") or signal_data.get("signal_type", "BUY"),
             "instrument": signal_data.get("instrument", "NIFTY"),
             "strike": signal_data.get("strike", "—"),
-            "entry_price": signal_data.get("entry_price"),
-            "sl_price": signal_data.get("sl_price"),
-            "t1_price": signal_data.get("t1_price"),
-            "t2_price": signal_data.get("t2_price"),
+            "entry_price": round(entry_price, 1) if entry_price else None,
+            "sl_price": float(signal_data.get("sl") or signal_data.get("sl_price") or 0) or None,
+            "t1_price": float(signal_data.get("t1") or signal_data.get("t1_price") or 0) or None,
+            "t2_price": float(signal_data.get("t2") or signal_data.get("t2_price") or 0) or None,
             "status": "ACTIVE",
             "exit_price": None,
             "pnl_amount": None,
             "pnl_pct": None,
             "sl_hit": False,
-            "reason": "",
-            "engine_verdicts": engines_snapshot or {},
-            "pcr": signal_data.get("pcr"),
-            "vix": signal_data.get("vix"),
+            "reason": signal_data.get("rr", ""),
+            "engine_verdicts": {},  # Don't store full verdicts — too large + non-serializable
         }
         self.trades.append(trade)
         logger.info(f"[TRADE] Recorded #{len(self.trades)}: {trade['signal_type']} {trade['strike']} @ {trade['entry_price']}")

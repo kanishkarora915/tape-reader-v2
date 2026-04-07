@@ -36,7 +36,11 @@ class WSManager:
         if not self.clients:
             return
 
-        message = json.dumps({"channel": channel, "data": data, **kwargs})
+        try:
+            message = json.dumps({"channel": channel, "data": data, **kwargs}, default=str)
+        except (TypeError, ValueError) as e:
+            logger.error(f"[WS] JSON serialize error on channel {channel}: {e}")
+            return
         dead_clients = set()
 
         for client in self.clients.copy():
