@@ -118,19 +118,22 @@ export default function TopBar({ tick = {}, connected = false, mode }) {
         />
         <span style={{ color: '#00C853', fontSize: 9, letterSpacing: 2 }}>LIVE</span>
         <Clock />
-        <span
+        <button
+          onClick={() => { fetch('/api/logout', {method:'POST'}).then(() => window.location.href = '/') }}
           style={{
-            border: '1px solid #FFB300',
+            border: '1px solid #FF3D00',
             padding: '2px 10px',
-            color: '#FFB300',
+            color: '#FF3D00',
             fontSize: 9,
             letterSpacing: 2,
             borderRadius: 0,
             background: 'none',
+            cursor: 'pointer',
+            fontFamily: "'IBM Plex Mono', monospace",
           }}
         >
-          {mode ? String(mode).toUpperCase() + ' MODE' : 'NORMAL MODE'}
-        </span>
+          LOGOUT
+        </button>
       </div>
     </div>
   )
